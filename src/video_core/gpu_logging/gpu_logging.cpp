@@ -40,6 +40,7 @@ void GPULogger::Initialize(LogLevel level, DriverType driver) {
 
     current_level = level;
     detected_driver = driver;
+    device_loss_dumped.store(false, std::memory_order_release);
 
     if (current_level == LogLevel::Off) {
         return;
@@ -645,6 +646,22 @@ void GPULogger::DumpStateToFile(const std::string& crash_reason) {
 
     LOG_CRITICAL(Render_Vulkan, "[GPU Logging] Crash dump written to: {}",
                  crash_dump_path.string());
+}
+
+void GPULogger::CaptureDeviceLost() {
+    if (!initialized) {
+        return;
+    }
+
+    bool expected = false;
+    if (!device_loss_dumped.compare_exchange_strong(expected, true,
+                                                     std::memory_order_acq_rel)) {
+        return;
+    }
+
+    // Capture while the Vulkan failure is still on the reporting thread, before
+    // ReportLoss waits for driver/Aftermath output.
+    DumpStateToFile("Vulkan reported VK_ERROR_DEVICE_LOST");
 }
 
 void GPULogger::SetLogLevel(LogLevel level) {
