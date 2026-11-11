@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <memory>
 #include <mutex>
@@ -116,6 +117,8 @@ public:
     // Crash handling
     GPUStateSnapshot GetCurrentSnapshot();
     void DumpStateToFile(const std::string& crash_reason);
+    // Capture the first Vulkan device-loss event for the current GPU logging session.
+    void CaptureDeviceLost();
 
     // Settings
     void SetLogLevel(LogLevel level);
@@ -142,6 +145,7 @@ private:
 
     // State
     bool initialized = false;
+    std::atomic<bool> device_loss_dumped{false};
     LogLevel current_level = LogLevel::Off;
     DriverType detected_driver = DriverType::Unknown;
 
