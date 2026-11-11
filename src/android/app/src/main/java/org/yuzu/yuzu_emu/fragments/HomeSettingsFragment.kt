@@ -33,6 +33,7 @@ import org.yuzu.yuzu_emu.HomeNavigationDirections
 import org.yuzu.yuzu_emu.NativeLibrary
 import org.yuzu.yuzu_emu.R
 import org.yuzu.yuzu_emu.YuzuApplication
+import org.yuzu.yuzu_emu.getPublicFilesDir
 import org.yuzu.yuzu_emu.adapters.HomeSettingAdapter
 import org.yuzu.yuzu_emu.databinding.FragmentHomeSettingsBinding
 import org.yuzu.yuzu_emu.features.DocumentProvider
