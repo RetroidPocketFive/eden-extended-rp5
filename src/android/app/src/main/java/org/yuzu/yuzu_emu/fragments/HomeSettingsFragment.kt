@@ -7,6 +7,7 @@ import android.Manifest
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.view.LayoutInflater
@@ -26,6 +27,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
+import java.io.File
 import com.google.android.material.transition.MaterialSharedAxis
 import org.yuzu.yuzu_emu.HomeNavigationDirections
 import org.yuzu.yuzu_emu.NativeLibrary
@@ -517,14 +519,35 @@ class HomeSettingsFragment : Fragment() {
             )
         )!!
 
-        val intent = Intent(Intent.ACTION_SEND)
-            .setDataAndType(currentLog.uri, FileUtil.TEXT_PLAIN)
-            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        if (!Log.gameLaunched && oldLog.exists()) {
-            intent.putExtra(Intent.EXTRA_STREAM, oldLog.uri)
-            startActivity(Intent.createChooser(intent, getText(R.string.share_gpu_log)))
-        } else if (currentLog.exists()) {
-            intent.putExtra(Intent.EXTRA_STREAM, currentLog.uri)
+        val attachments = arrayListOf<Uri>()
+        val selectedLog = if (!Log.gameLaunched && oldLog.exists()) oldLog else currentLog
+        if (selectedLog.exists()) {
+            attachments.add(selectedLog.uri)
+        }
+
+        // Attach the newest automatic device-loss report when one is available.
+        // Keep the normal GPU log share path working even when no crash report exists.
+        val crashDumpDirectory = File(
+            YuzuApplication.application.getPublicFilesDir(),
+            "log/gpu_crashes"
+        )
+        val latestCrashDump = crashDumpDirectory.listFiles()
+            ?.filter { it.isFile && it.extension == "gpu-dump" }
+            ?.maxByOrNull { it.lastModified() }
+        if (latestCrashDump != null) {
+            attachments.add(
+                DocumentsContract.buildDocumentUri(
+                    DocumentProvider.AUTHORITY,
+                    "${DocumentProvider.ROOT_ID}/log/gpu_crashes/${latestCrashDump.name}"
+                )
+            )
+        }
+
+        if (attachments.isNotEmpty()) {
+            val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
+                .setType(FileUtil.TEXT_PLAIN)
+                .putParcelableArrayListExtra(Intent.EXTRA_STREAM, attachments)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             startActivity(Intent.createChooser(intent, getText(R.string.share_gpu_log)))
         } else {
             Toast.makeText(
