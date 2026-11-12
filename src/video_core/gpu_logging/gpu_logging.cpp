@@ -682,7 +682,8 @@ void GPULogger::EnableDriverDebugInfo(bool enabled) {
 
 void GPULogger::SetRingBufferSize(size_t entries) {
     std::lock_guard lock(ring_buffer_mutex);
-    ring_buffer_size = entries;
+    // Keep the ring buffer non-empty: LogVulkanCall uses modulo ring_buffer_size.
+    ring_buffer_size = entries == 0 ? 1 : entries;
     call_ring_buffer.resize(entries);
     ring_buffer_index = 0;
 }
