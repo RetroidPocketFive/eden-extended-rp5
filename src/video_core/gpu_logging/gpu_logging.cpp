@@ -578,7 +578,7 @@ void GPULogger::DumpStateToFile(const std::string& crash_reason) {
 
     // Generate crash dump filename with timestamp
     const auto now = std::chrono::system_clock::now();
-    const auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+    const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()).count();
     const auto crash_dump_path = crashes_dir / fmt::format("crash_{}.gpu-dump", timestamp);
 
