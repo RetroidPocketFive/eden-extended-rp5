@@ -697,7 +697,9 @@ DriverType GPULogger::GetDriverType() const {
 }
 
 std::string GPULogger::GetStatistics() const {
-    std::lock_guard lock(memory_mutex);
+    // Vulkan call count is protected by ring_buffer_mutex; allocation statistics by
+    // memory_mutex. Acquire both together for a race-free combined snapshot.
+    std::scoped_lock lock(ring_buffer_mutex, memory_mutex);
     return fmt::format(
         "Vulkan Calls: {}, Allocations: {}, Deallocations: {}, "
         "Current Memory: {}, Peak Memory: {}",
