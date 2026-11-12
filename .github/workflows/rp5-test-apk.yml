@@ -37,6 +37,11 @@ jobs:
             platform-tools
           accept-android-sdk-licenses: true
 
+      - name: Install host shader build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes glslang-tools
+
       - name: Install Android NDK and CMake
         run: |
           sdkmanager "platforms;android-36" "ndk;28.2.13676358" "cmake;3.31.6"
