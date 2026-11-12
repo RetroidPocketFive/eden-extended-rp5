@@ -556,8 +556,8 @@ class HomeSettingsFragment : Fragment() {
             val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
                 .setType(FileUtil.TEXT_PLAIN)
                 .putParcelableArrayListExtra(Intent.EXTRA_STREAM, attachments)
-                .setClipData(clipData)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            intent.clipData = clipData
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             startActivity(Intent.createChooser(intent, getText(R.string.share_gpu_log)))
         } else {
             Toast.makeText(
