@@ -5,6 +5,7 @@ package org.yuzu.yuzu_emu.fragments
 
 import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -545,9 +546,17 @@ class HomeSettingsFragment : Fragment() {
         }
 
         if (attachments.isNotEmpty()) {
+            val clipData = ClipData.newUri(
+                mainActivity.contentResolver,
+                getText(R.string.share_gpu_log),
+                attachments.first()
+            )
+            attachments.drop(1).forEach { clipData.addItem(ClipData.Item(it)) }
+
             val intent = Intent(Intent.ACTION_SEND_MULTIPLE)
                 .setType(FileUtil.TEXT_PLAIN)
                 .putParcelableArrayListExtra(Intent.EXTRA_STREAM, attachments)
+                .setClipData(clipData)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             startActivity(Intent.createChooser(intent, getText(R.string.share_gpu_log)))
         } else {
