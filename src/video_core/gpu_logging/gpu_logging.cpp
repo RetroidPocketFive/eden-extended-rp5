@@ -180,7 +180,7 @@ void GPULogger::LogVulkanCall(const std::string& call_name, const std::string& p
         if (call_name.find("vkCmd") == std::string::npos &&
             call_name.find("vkCreate") == std::string::npos &&
             call_name.find("vkDestroy") == std::string::npos &&
-            call_name.find("PipelineBuild") == std::string::npos) {
+            call_name.find("PipelineCacheMiss") == std::string::npos) {
             return;
         }
     }
