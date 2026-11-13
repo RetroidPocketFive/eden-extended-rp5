@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <fstream>
 #include <iostream>
@@ -920,12 +921,20 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 }
 
 std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
+    const auto build_start = std::chrono::steady_clock::now();
     GraphicsEnvironments environments;
     GetGraphicsEnvironments(environments, graphics_key.unique_hashes);
 
     main_pools.ReleaseContents();
     auto pipeline{
         CreateGraphicsPipeline(main_pools, graphics_key, environments.Span(), nullptr, true)};
+    if (GPU::Logging::IsActive()) {
+        const auto build_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - build_start);
+        GPU::Logging::GPULogger::GetInstance().LogPipelineStateChange(fmt::format(
+            "Graphics pipeline build: hash={:#018x}, duration_us={}, result={}",
+            graphics_key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
+    }
     if (!pipeline || pipeline_cache_filename.empty()) {
         return pipeline;
     }
@@ -945,6 +954,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
 
 std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     const ComputePipelineCacheKey& key, const ShaderInfo* shader) {
+    const auto build_start = std::chrono::steady_clock::now();
     const GPUVAddr program_base{kepler_compute->regs.code_loc.Address()};
     const auto& qmd{kepler_compute->launch_description};
     ComputeEnvironment env{*kepler_compute, *gpu_memory, program_base, qmd.program_start};
@@ -952,6 +962,13 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
 
     main_pools.ReleaseContents();
     auto pipeline{CreateComputePipeline(main_pools, key, env, nullptr, true)};
+    if (GPU::Logging::IsActive()) {
+        const auto build_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - build_start);
+        GPU::Logging::GPULogger::GetInstance().LogPipelineStateChange(fmt::format(
+            "Compute pipeline build: hash={:#018x}, duration_us={}, result={}",
+            key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
+    }
     if (!pipeline || pipeline_cache_filename.empty()) {
         return pipeline;
     }
