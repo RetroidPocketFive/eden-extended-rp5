@@ -129,10 +129,11 @@ The bundle should include a schema version and units for every numeric field. Ex
 
 ## Implemented instrumentation
 
-- Graphics and compute pipeline cache misses now measure the CPU-side pipeline setup path with a monotonic clock.
-- Each setup result records the pipeline hash, elapsed microseconds, and success/failure in the GPU logger's recent-call ring. Standard logging retains these diagnostic events, so a later GPU device-loss dump can show the most recent cache-miss setup activity.
-- The measurement intentionally does **not** claim to be GPU execution time or asynchronous shader-compilation completion time. Those require separate completion events and/or Vulkan timestamp queries.
-- The timing event is emitted only on a pipeline cache miss, not on every draw. The logger's existing configuration controls whether GPU logging is active.
+- Graphics and compute pipeline cache misses measure the CPU-side pipeline setup path with a monotonic clock.
+- Graphics shader stages and compute shaders measure CPU translation / SPIR-V emission / Vulkan shader-module creation time, with shader hash, stage (where applicable), and SPIR-V size.
+- These records enter the GPU logger's recent-call ring and are retained at Standard log level. A later GPU device-loss dump can therefore show the most recent shader compilation and pipeline cache-miss activity.
+- The measurements do **not** claim to be GPU execution time or asynchronous graphics-pipeline completion time. Those require separate completion events and/or Vulkan timestamp queries.
+- Events are emitted only when a shader is prepared or a pipeline cache miss occurs, not on every draw. The logger's existing configuration controls whether GPU logging is active.
 
 ## Implementation phases
 
