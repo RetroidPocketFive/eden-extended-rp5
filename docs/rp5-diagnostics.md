@@ -127,6 +127,13 @@ The export should be one ZIP with:
 
 The bundle should include a schema version and units for every numeric field. Export must work without network access.
 
+## Implemented instrumentation
+
+- Graphics and compute pipeline cache misses now measure the CPU-side pipeline setup path with a monotonic clock.
+- Each setup result records the pipeline hash, elapsed microseconds, and success/failure in the GPU logger's recent-call ring. Standard logging retains these diagnostic events, so a later GPU device-loss dump can show the most recent cache-miss setup activity.
+- The measurement intentionally does **not** claim to be GPU execution time or asynchronous shader-compilation completion time. Those require separate completion events and/or Vulkan timestamp queries.
+- The timing event is emitted only on a pipeline cache miss, not on every draw. The logger's existing configuration controls whether GPU logging is active.
+
 ## Implementation phases
 
 ### Phase 1 — low-overhead timeline
