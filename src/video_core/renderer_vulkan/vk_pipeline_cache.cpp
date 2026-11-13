@@ -932,11 +932,11 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
         const auto build_time = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - build_start);
         GPU::Logging::GPULogger::GetInstance().LogPipelineStateChange(fmt::format(
-            "Graphics pipeline build: hash={:#018x}, duration_us={}, result={}",
+            "Graphics pipeline cache-miss setup: hash={:#018x}, duration_us={}, result={}",
             graphics_key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
         GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
-            "PipelineBuildGraphics",
-            fmt::format("pipeline_hash={:#018x}, build_duration_us={}", graphics_key.Hash(),
+            "PipelineCacheMissGraphics",
+            fmt::format("pipeline_hash={:#018x}, setup_duration_us={}", graphics_key.Hash(),
                         build_time.count()),
             pipeline ? 0 : 1);
     }
@@ -971,11 +971,11 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
         const auto build_time = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - build_start);
         GPU::Logging::GPULogger::GetInstance().LogPipelineStateChange(fmt::format(
-            "Compute pipeline build: hash={:#018x}, duration_us={}, result={}",
+            "Compute pipeline cache-miss setup: hash={:#018x}, duration_us={}, result={}",
             key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
         GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
-            "PipelineBuildCompute",
-            fmt::format("pipeline_hash={:#018x}, build_duration_us={}", key.Hash(),
+            "PipelineCacheMissCompute",
+            fmt::format("pipeline_hash={:#018x}, setup_duration_us={}", key.Hash(),
                         build_time.count()),
             pipeline ? VK_SUCCESS : VK_ERROR_UNKNOWN);
     }
