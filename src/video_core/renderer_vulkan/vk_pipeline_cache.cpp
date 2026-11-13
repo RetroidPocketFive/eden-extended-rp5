@@ -866,11 +866,22 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const size_t stage_index{index - 1};
         infos[stage_index] = &program.info;
 
+        const auto shader_compile_start = std::chrono::steady_clock::now();
         const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
         ConvertLegacyToGeneric(program, runtime_info);
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
         modules[stage_index] = BuildShader(device, code);
+        if (GPU::Logging::IsActive()) {
+            const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - shader_compile_start);
+            GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
+                "ShaderCompileStage",
+                fmt::format("shader_hash={:016x}, stage={}, cpu_prepare_us={}, spirv_bytes={}",
+                            key.unique_hashes[index], GPU::Logging::GetShaderStageName(stage_index),
+                            compile_time.count(), code.size() * sizeof(u32)),
+                0);
+        }
 
         // Text log + .spv dump. Text log is gated by gpu_log_level != Off; .spv dump
         // is independent and gated only by gpu_log_shader_dumps.
@@ -1022,9 +1033,19 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
                     max_shared_memory / 1024);
         program.shared_memory_size = max_shared_memory;
     }
+    const auto shader_compile_start = std::chrono::steady_clock::now();
     const std::vector<u32> code{EmitSPIRV(profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};
+    if (GPU::Logging::IsActive()) {
+        const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - shader_compile_start);
+        GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
+            "ShaderCompileCompute",
+            fmt::format("shader_hash={:016x}, cpu_prepare_us={}, spirv_bytes={}",
+                        key.unique_hash, compile_time.count(), code.size() * sizeof(u32)),
+            0);
+    }
 
     // Text log + .spv dump. Same split as the graphics path.
     const bool should_log = GPU::Logging::IsActive();
