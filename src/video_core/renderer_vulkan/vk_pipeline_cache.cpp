@@ -935,10 +935,10 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
             "Graphics pipeline build: hash={:#018x}, duration_us={}, result={}",
             graphics_key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
         GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
-            "vkCreateGraphicsPipelines",
+            "PipelineBuildGraphics",
             fmt::format("pipeline_hash={:#018x}, build_duration_us={}", graphics_key.Hash(),
                         build_time.count()),
-            pipeline ? VK_SUCCESS : VK_ERROR_UNKNOWN);
+            pipeline ? 0 : 1);
     }
     if (!pipeline || pipeline_cache_filename.empty()) {
         return pipeline;
@@ -974,7 +974,7 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
             "Compute pipeline build: hash={:#018x}, duration_us={}, result={}",
             key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
         GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
-            "vkCreateComputePipelines",
+            "PipelineBuildCompute",
             fmt::format("pipeline_hash={:#018x}, build_duration_us={}", key.Hash(),
                         build_time.count()),
             pipeline ? VK_SUCCESS : VK_ERROR_UNKNOWN);
