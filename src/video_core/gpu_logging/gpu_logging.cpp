@@ -179,7 +179,8 @@ void GPULogger::LogVulkanCall(const std::string& call_name, const std::string& p
         // In Standard mode, only log important calls
         if (call_name.find("vkCmd") == std::string::npos &&
             call_name.find("vkCreate") == std::string::npos &&
-            call_name.find("vkDestroy") == std::string::npos) {
+            call_name.find("vkDestroy") == std::string::npos &&
+            call_name.find("PipelineBuild") == std::string::npos) {
             return;
         }
     }
