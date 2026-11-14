@@ -193,7 +193,6 @@ class MainActivity : AppCompatActivity(), ThemeProvider {
                 }
                 runCatching {
                     startActivity(Intent.createChooser(shareIntent, "Share crash diagnostics"))
-                    Rp5CrashReporter.clearReport(this)
                 }.onFailure {
                     android.widget.Toast.makeText(
                         this,
@@ -202,6 +201,7 @@ class MainActivity : AppCompatActivity(), ThemeProvider {
                     ).show()
                 }
             }
+            .setNeutralButton("Dismiss report") { _, _ -> Rp5CrashReporter.clearReport(this) }
             .setNegativeButton("Later", null)
             .show()
     }
