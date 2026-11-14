@@ -136,6 +136,8 @@ The bundle should include a schema version and units for every numeric field. Ex
 - Events are emitted only when a shader is prepared or a pipeline cache miss occurs, not on every draw. The logger's existing configuration controls whether GPU logging is active.
 - GPU timeline waits now measure the duration spent waiting for a submitted tick. Only waits of at least 1 ms are recorded, to avoid flooding the event ring on ordinary frames. This is CPU-observed wait duration, not GPU timestamp execution time.
 
+- Android now samples thermal status (Android 10+), battery temperature/charging status, process PSS, system available memory, and low-memory status every five seconds while the emulation activity is resumed. Samples are written to the existing local app log with elapsed-realtime timestamps; they are not uploaded. Battery temperature is reported only when Android supplies it. CPU/GPU clocks and utilization are intentionally not inferred.
+
 
 ## Implementation phases
 
