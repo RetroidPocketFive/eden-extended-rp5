@@ -134,6 +134,8 @@ The bundle should include a schema version and units for every numeric field. Ex
 - These records enter the GPU logger's recent-call ring and are retained at Standard log level. A later GPU device-loss dump can therefore show the most recent shader compilation and pipeline cache-miss activity.
 - The measurements do **not** claim to be GPU execution time or asynchronous graphics-pipeline completion time. Those require separate completion events and/or Vulkan timestamp queries.
 - Events are emitted only when a shader is prepared or a pipeline cache miss occurs, not on every draw. The logger's existing configuration controls whether GPU logging is active.
+- GPU timeline waits now measure the duration spent waiting for a submitted tick. Only waits of at least 1 ms are recorded, to avoid flooding the event ring on ordinary frames. This is CPU-observed wait duration, not GPU timestamp execution time.
+
 
 ## Implementation phases
 
