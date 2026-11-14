@@ -139,6 +139,11 @@ The bundle should include a schema version and units for every numeric field. Ex
 - Android now samples thermal status (Android 10+), battery temperature/charging status, process PSS, system available memory, and low-memory status every five seconds while the emulation activity is resumed. Samples are written to the existing local app log with elapsed-realtime timestamps; they are not uploaded. Battery temperature is reported only when Android supplies it. CPU/GPU clocks and utilization are intentionally not inferred.
 
 
+
+- On Android 11+ the app now reads Android's historical process-exit records on the next launch. It records abnormal exit classifications such as Java/native crash, ANR, low-memory kill and signal termination, plus process PSS/RSS and any native trace Android makes available.
+- The report is saved privately in the app's internal files directory. On the next launch, Eden offers a **Share report** action; the user must explicitly choose a sharing target. Choosing **Later** keeps the report for a subsequent launch. No PC, ADB, root access, or automatic upload is required.
+- Android's process-exit history is retrospective: the report appears after the app has been reopened. It cannot guarantee a tombstone or complete vendor GPU-driver trace; Android may withhold those from ordinary apps. Existing Eden/GPU logs remain important companion evidence.
+
 ## Implementation phases
 
 ### Phase 1 — low-overhead timeline
