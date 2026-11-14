@@ -24,6 +24,7 @@ import org.yuzu.yuzu_emu.utils.DocumentsTree
 import org.yuzu.yuzu_emu.utils.GpuDriverHelper
 import org.yuzu.yuzu_emu.utils.Log
 import org.yuzu.yuzu_emu.utils.PowerStateUpdater
+import org.yuzu.yuzu_emu.utils.Rp5CrashReporter
 import org.yuzu.yuzu_emu.utils.ControllerNavigationGlobalHook
 import java.util.Locale
 
@@ -60,6 +61,9 @@ class YuzuApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         application = this
+        // Android records process exit details only after a process has ended.
+        // Read them on the next launch so native crashes and LMK kills survive.
+        Rp5CrashReporter.collectPreviousExit()
         documentsTree = DocumentsTree()
         DirectoryInitialization.start()
 
