@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <fstream>
 #include <iostream>
@@ -442,7 +443,9 @@ PipelineCache::PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_,
                                        driver_id == VK_DRIVER_ID_AMD_OPEN_SOURCE ||
                                        driver_id == VK_DRIVER_ID_MESA_RADV ||
                                        driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS ||
-                                       driver_id == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA,
+                                       driver_id == VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA ||
+                                       driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY ||
+                                       driver_id == VK_DRIVER_ID_MESA_TURNIP,
 
         .has_broken_spirv_clamp = driver_id == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS,
         .has_broken_spirv_position_input = driver_id == false,
@@ -863,11 +866,22 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const size_t stage_index{index - 1};
         infos[stage_index] = &program.info;
 
+        const auto shader_compile_start = std::chrono::steady_clock::now();
         const auto runtime_info{MakeRuntimeInfo(programs, key, program, previous_stage, device)};
         ConvertLegacyToGeneric(program, runtime_info);
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
         modules[stage_index] = BuildShader(device, code);
+        if (GPU::Logging::IsActive()) {
+            const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - shader_compile_start);
+            GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
+                "ShaderCompileStage",
+                fmt::format("shader_hash={:016x}, stage={}, cpu_prepare_us={}, spirv_bytes={}",
+                            key.unique_hashes[index], GPU::Logging::GetShaderStageName(stage_index),
+                            compile_time.count(), code.size() * sizeof(u32)),
+                0);
+        }
 
         // Text log + .spv dump. Text log is gated by gpu_log_level != Off; .spv dump
         // is independent and gated only by gpu_log_shader_dumps.
@@ -918,12 +932,25 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 }
 
 std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
+    const auto build_start = std::chrono::steady_clock::now();
     GraphicsEnvironments environments;
     GetGraphicsEnvironments(environments, graphics_key.unique_hashes);
 
     main_pools.ReleaseContents();
     auto pipeline{
         CreateGraphicsPipeline(main_pools, graphics_key, environments.Span(), nullptr, true)};
+    if (GPU::Logging::IsActive()) {
+        const auto build_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - build_start);
+        GPU::Logging::GPULogger::GetInstance().LogPipelineStateChange(fmt::format(
+            "Graphics pipeline cache-miss setup: hash={:#018x}, duration_us={}, result={}",
+            graphics_key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
+        GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
+            "PipelineCacheMissGraphics",
+            fmt::format("pipeline_hash={:#018x}, setup_duration_us={}", graphics_key.Hash(),
+                        build_time.count()),
+            pipeline ? 0 : 1);
+    }
     if (!pipeline || pipeline_cache_filename.empty()) {
         return pipeline;
     }
@@ -943,6 +970,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline() {
 
 std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     const ComputePipelineCacheKey& key, const ShaderInfo* shader) {
+    const auto build_start = std::chrono::steady_clock::now();
     const GPUVAddr program_base{kepler_compute->regs.code_loc.Address()};
     const auto& qmd{kepler_compute->launch_description};
     ComputeEnvironment env{*kepler_compute, *gpu_memory, program_base, qmd.program_start};
@@ -950,6 +978,18 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
 
     main_pools.ReleaseContents();
     auto pipeline{CreateComputePipeline(main_pools, key, env, nullptr, true)};
+    if (GPU::Logging::IsActive()) {
+        const auto build_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - build_start);
+        GPU::Logging::GPULogger::GetInstance().LogPipelineStateChange(fmt::format(
+            "Compute pipeline cache-miss setup: hash={:#018x}, duration_us={}, result={}",
+            key.Hash(), build_time.count(), pipeline ? "success" : "failed"));
+        GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
+            "PipelineCacheMissCompute",
+            fmt::format("pipeline_hash={:#018x}, setup_duration_us={}", key.Hash(),
+                        build_time.count()),
+            pipeline ? VK_SUCCESS : VK_ERROR_UNKNOWN);
+    }
     if (!pipeline || pipeline_cache_filename.empty()) {
         return pipeline;
     }
@@ -993,9 +1033,19 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
                     max_shared_memory / 1024);
         program.shared_memory_size = max_shared_memory;
     }
+    const auto shader_compile_start = std::chrono::steady_clock::now();
     const std::vector<u32> code{EmitSPIRV(profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};
+    if (GPU::Logging::IsActive()) {
+        const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - shader_compile_start);
+        GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
+            "ShaderCompileCompute",
+            fmt::format("shader_hash={:016x}, cpu_prepare_us={}, spirv_bytes={}",
+                        key.unique_hash, compile_time.count(), code.size() * sizeof(u32)),
+            0);
+    }
 
     // Text log + .spv dump. Same split as the graphics path.
     const bool should_log = GPU::Logging::IsActive();

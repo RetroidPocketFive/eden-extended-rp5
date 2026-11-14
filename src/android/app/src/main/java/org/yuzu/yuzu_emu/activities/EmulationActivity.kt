@@ -60,6 +60,7 @@ import org.yuzu.yuzu_emu.network.NetPlayManager
 import org.yuzu.yuzu_emu.utils.InputHandler
 import org.yuzu.yuzu_emu.utils.Log
 import org.yuzu.yuzu_emu.utils.MemoryUtil
+import org.yuzu.yuzu_emu.utils.Rp5DiagnosticSampler
 import org.yuzu.yuzu_emu.utils.NativeConfig
 import org.yuzu.yuzu_emu.utils.NfcReader
 import org.yuzu.yuzu_emu.utils.ParamPackage
@@ -245,6 +246,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
 
     override fun onResume() {
         super.onResume()
+        Rp5DiagnosticSampler.start()
         nfcReader.startScanning()
         startMotionSensorListener()
         InputHandler.updateControllerData()
@@ -254,6 +256,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
     }
 
     override fun onPause() {
+        Rp5DiagnosticSampler.stop()
         nfcReader.stopScanning()
         stopMotionSensorListener()
         super.onPause()

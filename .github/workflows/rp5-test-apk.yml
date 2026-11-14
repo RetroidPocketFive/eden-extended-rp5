@@ -1,0 +1,67 @@
+name: RP5 test APK
+
+on:
+  push:
+    branches:
+      - rp5-development
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rp5-test-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Check out source and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 12266719
+          packages: |-
+            platform-tools
+          accept-android-sdk-licenses: true
+
+      - name: Install host shader build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes glslang-tools
+
+      - name: Install Android NDK and CMake
+        run: |
+          sdkmanager "platforms;android-36" "ndk;28.2.13676358" "cmake;3.31.6"
+
+      - name: Configure native build and generate SDL Java sources
+        working-directory: src/android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace configureCMakeRelWithDebInfo[arm64-v8a]
+          test -f ../../externals/generated/sdl/java/org/libsdl/app/SDL.java
+
+      - name: Build arm64-v8a test APK
+        working-directory: src/android
+        run: |
+          ./gradlew --no-daemon --stacktrace assembleMainlineRelWithDebInfo
+
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: eden-extended-rp5-mainline-relWithDebInfo-${{ github.sha }}
+          path: src/android/app/build/outputs/apk/mainline/relWithDebInfo/app-mainline-relWithDebInfo.apk
+          if-no-files-found: error
+          retention-days: 14

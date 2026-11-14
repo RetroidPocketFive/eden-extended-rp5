@@ -40,6 +40,7 @@ void GPULogger::Initialize(LogLevel level, DriverType driver) {
 
     current_level = level;
     detected_driver = driver;
+    device_loss_dumped.store(false, std::memory_order_release);
 
     if (current_level == LogLevel::Off) {
         return;
@@ -178,7 +179,10 @@ void GPULogger::LogVulkanCall(const std::string& call_name, const std::string& p
         // In Standard mode, only log important calls
         if (call_name.find("vkCmd") == std::string::npos &&
             call_name.find("vkCreate") == std::string::npos &&
-            call_name.find("vkDestroy") == std::string::npos) {
+            call_name.find("vkDestroy") == std::string::npos &&
+            call_name.find("PipelineCacheMiss") == std::string::npos &&
+            call_name.find("ShaderCompile") == std::string::npos &&
+            call_name.find("GpuTimelineWait") == std::string::npos) {
             return;
         }
     }
@@ -577,7 +581,7 @@ void GPULogger::DumpStateToFile(const std::string& crash_reason) {
 
     // Generate crash dump filename with timestamp
     const auto now = std::chrono::system_clock::now();
-    const auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+    const auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
         now.time_since_epoch()).count();
     const auto crash_dump_path = crashes_dir / fmt::format("crash_{}.gpu-dump", timestamp);
 
@@ -647,6 +651,22 @@ void GPULogger::DumpStateToFile(const std::string& crash_reason) {
                  crash_dump_path.string());
 }
 
+void GPULogger::CaptureDeviceLost() {
+    if (!initialized) {
+        return;
+    }
+
+    bool expected = false;
+    if (!device_loss_dumped.compare_exchange_strong(expected, true,
+                                                     std::memory_order_acq_rel)) {
+        return;
+    }
+
+    // Capture while the Vulkan failure is still on the reporting thread, before
+    // ReportLoss waits for driver/Aftermath output.
+    DumpStateToFile("Vulkan reported VK_ERROR_DEVICE_LOST");
+}
+
 void GPULogger::SetLogLevel(LogLevel level) {
     current_level = level;
 }
@@ -665,7 +685,8 @@ void GPULogger::EnableDriverDebugInfo(bool enabled) {
 
 void GPULogger::SetRingBufferSize(size_t entries) {
     std::lock_guard lock(ring_buffer_mutex);
-    ring_buffer_size = entries;
+    // Keep the ring buffer non-empty: LogVulkanCall uses modulo ring_buffer_size.
+    ring_buffer_size = entries == 0 ? 1 : entries;
     call_ring_buffer.resize(entries);
     ring_buffer_index = 0;
 }
@@ -679,7 +700,9 @@ DriverType GPULogger::GetDriverType() const {
 }
 
 std::string GPULogger::GetStatistics() const {
-    std::lock_guard lock(memory_mutex);
+    // Vulkan call count is protected by ring_buffer_mutex; allocation statistics by
+    // memory_mutex. Acquire both together for a race-free combined snapshot.
+    std::scoped_lock lock(ring_buffer_mutex, memory_mutex);
     return fmt::format(
         "Vulkan Calls: {}, Allocations: {}, Deallocations: {}, "
         "Current Memory: {}, Peak Memory: {}",
