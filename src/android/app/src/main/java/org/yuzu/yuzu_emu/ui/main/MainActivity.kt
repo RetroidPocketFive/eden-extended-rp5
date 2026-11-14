@@ -168,6 +168,42 @@ class MainActivity : AppCompatActivity(), ThemeProvider {
         }
         setInsets()
         applyFullscreenPreference()
+        showPendingCrashReport()
+    }
+
+
+    /**
+     * Offer the previous Android process-exit report after an abnormal exit.
+     * The report remains private in app storage unless the user explicitly shares it.
+     */
+    private fun showPendingCrashReport() {
+        val report = Rp5CrashReporter.readReport(this) ?: return
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Eden crash diagnostics available")
+            .setMessage(
+                "Android recorded details about the previous Eden process exit. " +
+                    "Sharing this report can help identify native crashes, ANRs, " +
+                    "or memory-related termination. It is only shared if you choose Share."
+            )
+            .setPositiveButton("Share report") { _, _ ->
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "Eden Android crash diagnostics")
+                    putExtra(Intent.EXTRA_TEXT, report)
+                }
+                runCatching {
+                    startActivity(Intent.createChooser(shareIntent, "Share crash diagnostics"))
+                    Rp5CrashReporter.clearReport(this)
+                }.onFailure {
+                    android.widget.Toast.makeText(
+                        this,
+                        "Unable to open the sharing app: ${it.message}",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNegativeButton("Later", null)
+            .show()
     }
 
     private fun checkForUpdates() {
