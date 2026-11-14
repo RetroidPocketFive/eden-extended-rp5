@@ -7,6 +7,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <fmt/format.h>
 #include <cstddef>
 #include <functional>
 #include <memory>
