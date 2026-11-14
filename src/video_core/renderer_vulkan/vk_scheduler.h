@@ -18,6 +18,7 @@
 #include "common/common_types.h"
 #include "common/polyfill_thread.h"
 #include "common/settings.h"
+#include "video_core/gpu_logging/gpu_logging.h"
 #include "video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "video_core/vulkan_common/vulkan_wrapper.h"
 
@@ -135,7 +136,19 @@ public:
             if (tick >= master_semaphore->CurrentTick()) {
                 Flush();
             }
+            const auto wait_start = std::chrono::steady_clock::now();
             master_semaphore->Wait(tick);
+            if (GPU::Logging::IsActive()) {
+                const auto wait_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - wait_start);
+                // Keep the hot path quiet: retain only waits that can plausibly contribute
+                // to a visible frame-time spike (>= 1 ms).
+                if (wait_time >= std::chrono::milliseconds(1)) {
+                    GPU::Logging::GPULogger::GetInstance().LogVulkanCall(
+                        "GpuTimelineWait",
+                        fmt::format("tick={}, wait_duration_us={}", tick, wait_time.count()), 0);
+                }
+            }
         }
         if (Settings::values.use_speed_limit.GetValue() && target_fps > 0.0) {
             auto now = std::chrono::steady_clock::now();
