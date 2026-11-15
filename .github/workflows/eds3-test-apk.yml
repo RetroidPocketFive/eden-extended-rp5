@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - rp5-development-eds3-test
+      - rp5-development-eds3-ci-test
     paths:
       - "src/video_core/renderer_vulkan/**"
       - "src/video_core/vulkan_common/**"
