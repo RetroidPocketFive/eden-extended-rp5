@@ -9,6 +9,8 @@
 #include <chrono>
 #include <limits>
 #include <optional>
+#include <utility>
+#include <vector>
 #include <bit>
 #include "common/container/unordered_map.h"
 #include <boost/container/small_vector.hpp>
@@ -138,8 +140,20 @@ void TextureCache<P>::RunGarbageCollector() {
         ticks_to_destroy = aggressive_mode ? 10ULL : high_priority_mode ? 25ULL : 50ULL;
         num_iterations = aggressive_mode ? 40 : (high_priority_mode ? 20 : 10);
     };
+    // RP5: GPU->guest write-backs needed by evicted images are batched so the whole pass waits on
+    // the GPU once instead of once per evicted image.
+    using DownloadCopies = decltype(FixSmallVectorADL(FullDownloadCopies(std::declval<const ImageInfo&>())));
+    using StagingRef = decltype(std::declval<Runtime&>().DownloadStagingBuffer(size_t{}));
+    struct PendingWriteback {
+        StagingRef map;
+        GPUVAddr gpu_addr;
+        ImageInfo info;
+        DownloadCopies copies;
+    };
+    std::vector<PendingWriteback> pending_writebacks;
     const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode, &finish_wait,
-                          &evicted_images, &evicted_with_download](ImageId image_id) {
+                          &evicted_images, &evicted_with_download,
+                          &pending_writebacks](ImageId image_id) {
         if (num_iterations == 0) {
             return true;
         }
@@ -154,13 +168,11 @@ void TextureCache<P>::RunGarbageCollector() {
         }
         if (must_download) {
             auto map = runtime.DownloadStagingBuffer(image.unswizzled_size_bytes);
-            const auto copies = FixSmallVectorADL(FullDownloadCopies(image.info));
+            auto copies = FixSmallVectorADL(FullDownloadCopies(image.info));
             image.DownloadMemory(map, copies);
-            const auto finish_begin = GcClock::now();
-            runtime.Finish();
-            finish_wait += GcClock::now() - finish_begin;
+            pending_writebacks.push_back(
+                PendingWriteback{map, image.gpu_addr, image.info, std::move(copies)});
             ++evicted_with_download;
-            SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span, swizzle_data_buffer);
         }
         ++evicted_images;
         if (True(image.flags & ImageFlagBits::Tracked)) {
@@ -182,6 +194,16 @@ void TextureCache<P>::RunGarbageCollector() {
     if (total_used_memory >= critical_memory) {
         Configure(true);
         lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
+    }
+    if (!pending_writebacks.empty()) {
+        // One wait covers every download recorded above; write-backs are applied in eviction order.
+        const auto finish_begin = GcClock::now();
+        runtime.Finish();
+        finish_wait += GcClock::now() - finish_begin;
+        for (const PendingWriteback& wb : pending_writebacks) {
+            SwizzleImage(*gpu_memory, wb.gpu_addr, wb.info, wb.copies, wb.map.mapped_span,
+                         swizzle_data_buffer);
+        }
     }
     const auto gc_total = GcClock::now() - gc_begin;
     const auto to_us = [](GcClock::duration d) {
