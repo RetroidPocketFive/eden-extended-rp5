@@ -677,6 +677,10 @@ FN_MAX_LIMIT_LIST
         return extensions.depth_clip_control;
     }
 
+    bool IsExtDepthClipEnableSupported() const {
+        return extensions.depth_clip_enable;
+    }
+
     /// Returns true if the device supports VK_EXT_depth_bias_control.
     bool IsExtDepthBiasControlSupported() const {
         return extensions.depth_bias_control;
