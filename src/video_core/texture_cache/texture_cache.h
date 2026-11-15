@@ -151,7 +151,7 @@ void TextureCache<P>::RunGarbageCollector() {
         DownloadCopies copies;
     };
     std::vector<PendingWriteback> pending_writebacks;
-    const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode, &finish_wait,
+    const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode,
                           &evicted_images, &evicted_with_download,
                           &pending_writebacks](ImageId image_id) {
         if (num_iterations == 0) {
