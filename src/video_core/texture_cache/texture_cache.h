@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <limits>
 #include <optional>
 #include <bit>
@@ -77,6 +78,12 @@ TextureCache<P>::TextureCache(Runtime& runtime_, Tegra::MaxwellDeviceMemoryManag
         minimum_memory = 0;
     }
 
+    LOG_INFO(HW_GPU,
+             "RP5 texture cache budget: has_memory_info={} expected={} MiB critical={} MiB "
+             "minimum={} MiB",
+             HAS_DEVICE_MEMORY_INFO, expected_memory / 1_MiB, critical_memory / 1_MiB,
+             minimum_memory / 1_MiB);
+
     const bool gpu_unswizzle_enabled = Settings::values.gpu_unswizzle_enabled.GetValue();
 
     if (gpu_unswizzle_enabled) {
@@ -119,13 +126,20 @@ void TextureCache<P>::RunGarbageCollector() {
     bool aggressive_mode = false;
     u64 ticks_to_destroy = 0;
     size_t num_iterations = 0;
+    // RP5 diagnostics: measure how much of this pass is spent waiting on the GPU
+    using GcClock = std::chrono::steady_clock;
+    const auto gc_begin = GcClock::now();
+    GcClock::duration finish_wait{};
+    size_t evicted_images = 0;
+    size_t evicted_with_download = 0;
     const auto Configure = [&](bool allow_aggressive) {
         high_priority_mode = total_used_memory >= expected_memory;
         aggressive_mode = allow_aggressive && total_used_memory >= critical_memory;
         ticks_to_destroy = aggressive_mode ? 10ULL : high_priority_mode ? 25ULL : 50ULL;
         num_iterations = aggressive_mode ? 40 : (high_priority_mode ? 20 : 10);
     };
-    const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode](ImageId image_id) {
+    const auto Cleanup = [this, &num_iterations, &high_priority_mode, &aggressive_mode, &finish_wait,
+                          &evicted_images, &evicted_with_download](ImageId image_id) {
         if (num_iterations == 0) {
             return true;
         }
@@ -142,9 +156,13 @@ void TextureCache<P>::RunGarbageCollector() {
             auto map = runtime.DownloadStagingBuffer(image.unswizzled_size_bytes);
             const auto copies = FixSmallVectorADL(FullDownloadCopies(image.info));
             image.DownloadMemory(map, copies);
+            const auto finish_begin = GcClock::now();
             runtime.Finish();
+            finish_wait += GcClock::now() - finish_begin;
+            ++evicted_with_download;
             SwizzleImage(*gpu_memory, image.gpu_addr, image.info, copies, map.mapped_span, swizzle_data_buffer);
         }
+        ++evicted_images;
         if (True(image.flags & ImageFlagBits::Tracked)) {
             UntrackImage(image, image_id);
         }
@@ -164,6 +182,20 @@ void TextureCache<P>::RunGarbageCollector() {
     if (total_used_memory >= critical_memory) {
         Configure(true);
         lru_cache.ForEachItemBelow(frame_tick - ticks_to_destroy, Cleanup);
+    }
+    const auto gc_total = GcClock::now() - gc_begin;
+    const auto to_us = [](GcClock::duration d) {
+        return std::chrono::duration_cast<std::chrono::microseconds>(d).count();
+    };
+    // Only report passes that could be felt as a hitch (>= 2 ms), at most once per ~2 s of frames.
+    if (to_us(gc_total) >= 2000 && frame_tick >= last_gc_report_tick + 120) {
+        last_gc_report_tick = frame_tick;
+        LOG_WARNING(HW_GPU,
+                    "RP5 texture GC: frame={} used={} MiB expected={} MiB critical={} MiB "
+                    "evicted={} (with_download={}) total={} us gpu_finish_wait={} us",
+                    frame_tick, total_used_memory / 1_MiB, expected_memory / 1_MiB,
+                    critical_memory / 1_MiB, evicted_images, evicted_with_download,
+                    to_us(gc_total), to_us(finish_wait));
     }
 }
 
