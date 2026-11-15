@@ -9,8 +9,9 @@ on:
       - "src/video_core/vulkan_common/**"
       - ".github/workflows/eds3-test-apk.yml"
   pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
     branches:
-      - rp5-development
+      - rp5-development-eds3-ci-base
     paths:
       - "src/video_core/renderer_vulkan/**"
       - "src/video_core/vulkan_common/**"
