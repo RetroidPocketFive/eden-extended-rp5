@@ -8,6 +8,13 @@ on:
       - "src/video_core/renderer_vulkan/**"
       - "src/video_core/vulkan_common/**"
       - ".github/workflows/eds3-test-apk.yml"
+  pull_request:
+    branches:
+      - rp5-development
+    paths:
+      - "src/video_core/renderer_vulkan/**"
+      - "src/video_core/vulkan_common/**"
+      - ".github/workflows/eds3-test-apk.yml"
 
 permissions:
   contents: read
