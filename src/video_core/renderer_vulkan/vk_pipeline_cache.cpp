@@ -1035,7 +1035,15 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
         env.Dump(hash, key.unique_hash);
     }
 
+    const auto translate_start = std::chrono::steady_clock::now();
     auto program{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
+    const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - translate_start).count();
+    if (translate_us >= 2000) {
+        LOG_WARNING(Render_Vulkan,
+                    "RP5 shader diagnostics: compute translate hash={:016x} duration={} us",
+                    key.unique_hash, translate_us);
+    }
     const VkDriverIdKHR driver_id = device.GetDriverID();
     const bool needs_shared_mem_clamp =
         driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY ||
@@ -1053,6 +1061,13 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     const std::vector<u32> code{EmitSPIRV(profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};
+    const auto shader_compile_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - shader_compile_start).count();
+    if (shader_compile_us >= 2000) {
+        LOG_WARNING(Render_Vulkan,
+                    "RP5 shader diagnostics: compute SPIR-V/module hash={:016x} duration={} us bytes={}",
+                    key.unique_hash, shader_compile_us, code.size() * sizeof(u32));
+    }
     if (GPU::Logging::IsActive()) {
         const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - shader_compile_start);
