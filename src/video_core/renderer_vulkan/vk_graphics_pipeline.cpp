@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <iostream>
 #include <span>
@@ -1073,6 +1074,7 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
     }
 
+    const auto pipeline_build_start = std::chrono::steady_clock::now();
     pipeline = device.GetLogical().CreateGraphicsPipeline({
         .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
         .pNext = nullptr,
@@ -1094,6 +1096,13 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         .basePipelineHandle = nullptr,
         .basePipelineIndex = 0,
     }, *pipeline_cache);
+    const auto pipeline_build_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - pipeline_build_start).count();
+    if (pipeline_build_us >= 2000) {
+        LOG_WARNING(Render_Vulkan,
+                    "RP5 shader diagnostics: Vulkan graphics pipeline hash={:016x} duration={} us stages={}",
+                    key.Hash(), pipeline_build_us, shader_stages.size());
+    }
 
     // Log graphics pipeline creation
     if (GPU::Logging::IsActive()) {
