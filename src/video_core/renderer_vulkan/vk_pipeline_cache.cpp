@@ -818,9 +818,9 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
 
-        const auto translate_start = std::chrono::steady_clock::now();
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
+        const auto translate_start = std::chrono::steady_clock::now();
         if (!uses_vertex_a || index != 1) {
             // Normal path
             programs[index] = TranslateProgram(pools.inst, pools.block, env, cfg, host_info);
@@ -829,6 +829,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             auto& program_va{programs[0]};
             auto program_vb{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
             programs[index] = MergeDualVertexPrograms(program_va, program_vb, env);
+        }
+
+        const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - translate_start).count();
+        if (translate_us >= 2000) {
+            LOG_WARNING(Render_Vulkan,
+                        "RP5 shader diagnostics: translate hash={:016x} stage={} duration={} us",
+                        key.unique_hashes[index], index, translate_us);
         }
 
         if (Settings::values.dump_guest_shaders || Settings::values.gpu_log_shader_dumps.GetValue()) {
@@ -845,13 +853,6 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             }
         }
 
-        const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - translate_start).count();
-        if (translate_us >= 2000) {
-            LOG_WARNING(Render_Vulkan,
-                        "RP5 shader diagnostics: translate hash={:016x} stage={} duration={} us",
-                        key.unique_hashes[index], index, translate_us);
-        }
         if (programs[index].info.requires_layer_emulation) {
             layer_source_program = &programs[index];
         }
