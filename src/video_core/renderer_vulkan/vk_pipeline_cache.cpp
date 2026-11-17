@@ -818,6 +818,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         Shader::Environment& env{*envs[env_index]};
         ++env_index;
 
+        const auto translate_start = std::chrono::steady_clock::now();
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
         if (!uses_vertex_a || index != 1) {
@@ -844,6 +845,13 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             }
         }
 
+        const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - translate_start).count();
+        if (translate_us >= 2000) {
+            LOG_WARNING(Render_Vulkan,
+                        "RP5 shader diagnostics: translate hash={:016x} stage={} duration={} us",
+                        key.unique_hashes[index], index, translate_us);
+        }
         if (programs[index].info.requires_layer_emulation) {
             layer_source_program = &programs[index];
         }
@@ -872,6 +880,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
         modules[stage_index] = BuildShader(device, code);
+        const auto shader_compile_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - shader_compile_start).count();
+        if (shader_compile_us >= 2000) {
+            LOG_WARNING(Render_Vulkan,
+                        "RP5 shader diagnostics: SPIR-V/module hash={:016x} stage={} duration={} us bytes={}",
+                        key.unique_hashes[index], stage_index, shader_compile_us,
+                        code.size() * sizeof(u32));
+        }
         if (GPU::Logging::IsActive()) {
             const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - shader_compile_start);
