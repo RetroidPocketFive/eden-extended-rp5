@@ -5,6 +5,7 @@ on:
     branches:
       - rp5-development
       - rp5-baseline-apk-test
+      - rp5-shader-stutter-diagnostics
   workflow_dispatch:
 
 permissions:
