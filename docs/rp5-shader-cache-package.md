@@ -13,7 +13,7 @@ The Vulkan backend currently uses:
 - `vulkan.bin`: Eden's serialized shader/pipeline cache.
 - `vulkan_pipelines.bin`: Vulkan driver's opaque pipeline cache, with an Eden wrapper header.
 
-The driver cache is driver/device-sensitive. The first implementation should export and import `vulkan.bin` only. Do not silently move `vulkan_pipelines.bin` between devices or driver versions. It can be added later only with reliable driver identity matching and explicit compatibility rules.
+The driver cache is driver/device-sensitive. The first implementation exports and imports `vulkan.bin` only. The manifest records that the driver cache is excluded and that the active Vulkan driver identity is not queried while the game is closed. Do not silently move `vulkan_pipelines.bin` between devices or driver versions. It can be added later only with reliable driver identity matching and explicit compatibility rules.
 
 ## Package format
 
@@ -22,7 +22,7 @@ A package is a ZIP container with the extension `.eden-cache`:
 - `manifest.txt`: UTF-8, human-readable metadata.
 - `vulkan.bin`: the per-title Eden Vulkan cache.
 
-Manifest format is line-oriented `key=value`; repeated `mod=` entries describe detected add-ons. Values must be escaped so newlines cannot inject extra manifest fields.
+Manifest format is line-oriented `key=value`; repeated `addon.N=` entries describe detected add-ons. Values must be escaped so newlines cannot inject extra manifest fields.
 
 Required metadata:
 
