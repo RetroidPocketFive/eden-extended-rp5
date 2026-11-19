@@ -15,6 +15,9 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -81,10 +84,18 @@ object ShaderCacheTransfer {
             setProperty("game_version", game.version.ifBlank { "unknown" })
             setProperty("android_device_model", Build.MODEL.ifBlank { "unknown" })
             setProperty("android_hardware", Build.HARDWARE.ifBlank { "unknown" })
+            setProperty("android_api_level", Build.VERSION.SDK_INT.toString())
+            setProperty("device_abi", Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown")
+            val driver = runCatching { GpuDriverHelper.installedCustomDriverData }.getOrNull()
+            setProperty("driver_name", driver?.name?.takeIf { it.isNotBlank() } ?: "system_default_or_unknown")
+            setProperty("driver_version", driver?.version?.takeIf { it.isNotBlank() } ?: "unknown")
+            setProperty("driver_vendor", driver?.vendor?.takeIf { it.isNotBlank() } ?: "unknown")
+            setProperty("driver_author", driver?.author?.takeIf { it.isNotBlank() } ?: "unknown")
+            setProperty("driver_library", driver?.libraryName?.takeIf { it.isNotBlank() } ?: "unknown")
+            setProperty("driver_identity_source", if (driver?.name.isNullOrBlank()) "unavailable" else "installed_driver_meta_json")
             setProperty("eden_cache_version", NativeLibrary.getShaderCacheVersion().toString())
             setProperty("driver_cache", "excluded_driver_specific")
-            setProperty("driver_identity", "not_captured_while_game_closed")
-            setProperty("cache_file", CACHE_FILE)
+                        setProperty("cache_file", CACHE_FILE)
             setProperty("cache_bytes", cacheFile.length().toString())
             setProperty("cache_sha256", sha256(cacheFile))
             patches.forEachIndexed { index, patch ->
@@ -93,8 +104,8 @@ object ShaderCacheTransfer {
                     listOf(
                         PatchType.from(patch.type).name,
                         patch.enabled.toString(),
-                        patch.name,
-                        patch.version
+                        patch.name.replace("|", "/"),
+                        patch.version.replace("|", "/")
                     ).joinToString("|")
                 )
             }
@@ -103,7 +114,9 @@ object ShaderCacheTransfer {
         resolver.openOutputStream(destination, "w")?.use { output ->
             ZipOutputStream(BufferedOutputStream(output)).use { zip ->
                 zip.putNextEntry(ZipEntry(MANIFEST_FILE))
-                properties.store(zip, "Eden local shader cache package")
+                val writer = OutputStreamWriter(zip, StandardCharsets.UTF_8)
+                properties.store(writer, "Eden local shader cache package")
+                writer.flush()
                 zip.closeEntry()
 
                 zip.putNextEntry(ZipEntry(CACHE_FILE))
@@ -157,7 +170,9 @@ object ShaderCacheTransfer {
 
             check(sawManifest && sawCache) { "The package must contain manifest.txt and vulkan.bin." }
             val properties = Properties().apply {
-                manifestFile.inputStream().use { load(it) }
+                manifestFile.inputStream().use { input ->
+                    InputStreamReader(input, StandardCharsets.UTF_8).use { load(it) }
+                }
             }
             check(properties.getProperty("package_format") == PACKAGE_VERSION.toString()) {
                 "Unsupported shader-cache package version."
@@ -174,7 +189,9 @@ object ShaderCacheTransfer {
 
             val declaredSize = properties.getProperty("cache_bytes")?.toLongOrNull()
                 ?: error("The manifest has no valid cache size.")
-            check(declaredSize == cacheFile.length()) { "The cache size does not match the manifest." }
+            check(declaredSize > 0L && declaredSize == cacheFile.length()) {
+                "The cache size does not match the manifest or is empty."
+            }
             val declaredHash = properties.getProperty("cache_sha256")
                 ?: error("The manifest has no cache checksum.")
             check(declaredHash.equals(sha256(cacheFile), ignoreCase = true)) {
@@ -189,6 +206,14 @@ object ShaderCacheTransfer {
             val importedGameVersion = properties.getProperty("game_version", "unknown")
             if (importedGameVersion != game.version && importedGameVersion != "unknown") {
                 warnings += "Game version differs: package $importedGameVersion, installed ${game.version}."
+            }
+            val importedDriver = properties.getProperty("driver_name", "unknown")
+            val importedDriverVersion = properties.getProperty("driver_version", "unknown")
+            val currentDriver = runCatching { GpuDriverHelper.installedCustomDriverData }.getOrNull()
+            val currentDriverName = currentDriver?.name?.takeIf { it.isNotBlank() } ?: "system_default_or_unknown"
+            val currentDriverVersion = currentDriver?.version?.takeIf { it.isNotBlank() } ?: "unknown"
+            if (importedDriver != currentDriverName || importedDriverVersion != currentDriverVersion) {
+                warnings += "Vulkan driver differs: package $importedDriver $importedDriverVersion, current $currentDriverName $currentDriverVersion. The driver-specific cache is not included."
             }
             val importedAddons = properties.stringPropertyNames()
                 .filter { it.startsWith("addon.") }
