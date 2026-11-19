@@ -9,6 +9,7 @@ import android.os.Build
 import org.yuzu.yuzu_emu.NativeLibrary
 import org.yuzu.yuzu_emu.model.Game
 import org.yuzu.yuzu_emu.model.Patch
+import org.yuzu.yuzu_emu.model.PatchType
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
@@ -82,6 +83,7 @@ object ShaderCacheTransfer {
             setProperty("android_hardware", Build.HARDWARE.ifBlank { "unknown" })
             setProperty("eden_cache_version", NativeLibrary.getShaderCacheVersion().toString())
             setProperty("driver_cache", "excluded_driver_specific")
+            setProperty("driver_identity", "not_captured_while_game_closed")
             setProperty("cache_file", CACHE_FILE)
             setProperty("cache_bytes", cacheFile.length().toString())
             setProperty("cache_sha256", sha256(cacheFile))
@@ -89,7 +91,7 @@ object ShaderCacheTransfer {
                 setProperty(
                     "addon.$index",
                     listOf(
-                        patch.type.toString(),
+                        PatchType.from(patch.type).name,
                         patch.enabled.toString(),
                         patch.name,
                         patch.version
@@ -193,7 +195,7 @@ object ShaderCacheTransfer {
                 .map { properties.getProperty(it) }
                 .sorted()
             val activeAddons = currentPatches.map {
-                listOf(it.type.toString(), it.enabled.toString(), it.name, it.version).joinToString("|")
+                listOf(PatchType.from(it.type).name, it.enabled.toString(), it.name, it.version).joinToString("|")
             }.sorted()
             if (importedAddons != activeAddons) {
                 warnings += "Detected add-ons differ from the export. Imported pipelines may need rebuilding."
