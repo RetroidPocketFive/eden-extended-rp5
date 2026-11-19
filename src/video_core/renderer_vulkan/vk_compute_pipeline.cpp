@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <chrono>
 #include <vector>
 
 #include <boost/container/small_vector.hpp>
@@ -110,6 +111,7 @@ ComputePipeline::ComputePipeline(const Device& device_, Scheduler& scheduler, vk
             .basePipelineHandle = 0,
             .basePipelineIndex = 0,
         };
+        const auto pipeline_build_start = std::chrono::steady_clock::now();
         try {
             pipeline = device.GetLogical().CreateComputePipeline(compute_ci, *pipeline_cache);
         } catch (const vk::Exception& exception) {
@@ -122,6 +124,14 @@ ComputePipeline::ComputePipeline(const Device& device_, Scheduler& scheduler, vk
                 shader_notify->MarkShaderComplete();
             }
             return;
+        }
+
+        const auto pipeline_build_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - pipeline_build_start).count();
+        if (pipeline_build_us >= 2000) {
+            LOG_WARNING(Render_Vulkan,
+                        "RP5 shader diagnostics: Vulkan compute pipeline hash={:016x} duration={} us",
+                        shader_hash, pipeline_build_us);
         }
 
         // Log compute pipeline creation

@@ -820,6 +820,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
         const u32 cfg_offset{static_cast<u32>(env.StartAddress() + sizeof(Shader::ProgramHeader))};
         Shader::Maxwell::Flow::CFG cfg(env, pools.flow_block, cfg_offset, index == 0);
+        const auto translate_start = std::chrono::steady_clock::now();
         if (!uses_vertex_a || index != 1) {
             // Normal path
             programs[index] = TranslateProgram(pools.inst, pools.block, env, cfg, host_info);
@@ -828,6 +829,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
             auto& program_va{programs[0]};
             auto program_vb{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
             programs[index] = MergeDualVertexPrograms(program_va, program_vb, env);
+        }
+
+        const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - translate_start).count();
+        if (translate_us >= 2000) {
+            LOG_WARNING(Render_Vulkan,
+                        "RP5 shader diagnostics: translate hash={:016x} stage={} duration={} us",
+                        key.unique_hashes[index], index, translate_us);
         }
 
         if (Settings::values.dump_guest_shaders || Settings::values.gpu_log_shader_dumps.GetValue()) {
@@ -872,6 +881,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         const std::vector<u32> code{EmitSPIRV(profile, runtime_info, program, binding)};
         device.SaveShader(code);
         modules[stage_index] = BuildShader(device, code);
+        const auto shader_compile_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - shader_compile_start).count();
+        if (shader_compile_us >= 2000) {
+            LOG_WARNING(Render_Vulkan,
+                        "RP5 shader diagnostics: SPIR-V/module hash={:016x} stage={} duration={} us bytes={}",
+                        key.unique_hashes[index], stage_index, shader_compile_us,
+                        code.size() * sizeof(u32));
+        }
         if (GPU::Logging::IsActive()) {
             const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - shader_compile_start);
@@ -1019,7 +1036,15 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
         env.Dump(hash, key.unique_hash);
     }
 
+    const auto translate_start = std::chrono::steady_clock::now();
     auto program{TranslateProgram(pools.inst, pools.block, env, cfg, host_info)};
+    const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - translate_start).count();
+    if (translate_us >= 2000) {
+        LOG_WARNING(Render_Vulkan,
+                    "RP5 shader diagnostics: compute translate hash={:016x} duration={} us",
+                    key.unique_hash, translate_us);
+    }
     const VkDriverIdKHR driver_id = device.GetDriverID();
     const bool needs_shared_mem_clamp =
         driver_id == VK_DRIVER_ID_QUALCOMM_PROPRIETARY ||
@@ -1037,6 +1062,13 @@ std::unique_ptr<ComputePipeline> PipelineCache::CreateComputePipeline(
     const std::vector<u32> code{EmitSPIRV(profile, program)};
     device.SaveShader(code);
     vk::ShaderModule spv_module{BuildShader(device, code)};
+    const auto shader_compile_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - shader_compile_start).count();
+    if (shader_compile_us >= 2000) {
+        LOG_WARNING(Render_Vulkan,
+                    "RP5 shader diagnostics: compute SPIR-V/module hash={:016x} duration={} us bytes={}",
+                    key.unique_hash, shader_compile_us, code.size() * sizeof(u32));
+    }
     if (GPU::Logging::IsActive()) {
         const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - shader_compile_start);
