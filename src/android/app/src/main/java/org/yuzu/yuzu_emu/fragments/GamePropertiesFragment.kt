@@ -197,15 +197,17 @@ class GamePropertiesFragment : Fragment() {
             return
         }
 
+        val resolver = requireContext().contentResolver
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) {
+                    val patches = NativeLibrary.getPatchesForFile(args.game.path, args.game.programId)?.toList().orEmpty()
                     ShaderCacheTransfer.export(
-                        requireContext().contentResolver,
+                        resolver,
                         destination,
                         userDirectory,
                         args.game,
-                        addonViewModel.addonList.value
+                        patches
                     )
                 }
                 Toast.makeText(requireContext(), R.string.shader_cache_export_success, Toast.LENGTH_LONG).show()
@@ -230,25 +232,29 @@ class GamePropertiesFragment : Fragment() {
             return
         }
 
+        val resolver = requireContext().contentResolver
+        val cacheDir = requireContext().cacheDir
         viewLifecycleOwner.lifecycleScope.launch {
             var candidate: ShaderCacheTransfer.Candidate? = null
             try {
                 candidate = withContext(Dispatchers.IO) {
+                    val patches = NativeLibrary.getPatchesForFile(args.game.path, args.game.programId)?.toList().orEmpty()
                     ShaderCacheTransfer.inspect(
-                        requireContext().contentResolver,
+                        resolver,
                         source,
-                        requireContext().cacheDir,
+                        cacheDir,
                         args.game,
-                        addonViewModel.addonList.value
+                        patches
                     )
                 }
-                val manifest = candidate.manifest
+                val validatedCandidate = candidate ?: error("Shader-cache validation did not produce a package.")
+                val manifest = validatedCandidate.manifest
                 val addonNames = manifest.stringPropertyNames()
                     .filter { it.startsWith("addon.") }
                     .sorted()
                     .mapNotNull { manifest.getProperty(it)?.split("|")?.getOrNull(2) }
                 val cacheBytes = manifest.getProperty("cache_bytes")?.toLongOrNull() ?: 0L
-                val warnings = if (candidate.warnings.isEmpty()) {
+                val warnings = if (validatedCandidate.warnings.isEmpty()) {
                     "No compatibility differences detected."
                 } else {
                     candidate.warnings.joinToString(separator = "\n") { "• $it" }
@@ -273,12 +279,12 @@ class GamePropertiesFragment : Fragment() {
                         candidate?.cleanup()
                     }
                     .setPositiveButton(android.R.string.ok) { _, _ ->
-                        val validatedCandidate = candidate ?: return@setPositiveButton
+                        val importCandidate = validatedCandidate
                         viewLifecycleOwner.lifecycleScope.launch {
                             try {
                                 withContext(Dispatchers.IO) {
                                     ShaderCacheTransfer.install(
-                                        validatedCandidate,
+                                        importCandidate,
                                         ShaderCacheTransfer.cacheDirectory(userDirectory, args.game)
                                     )
                                 }
@@ -294,7 +300,7 @@ class GamePropertiesFragment : Fragment() {
                                     Toast.LENGTH_LONG
                                 ).show()
                             } finally {
-                                validatedCandidate.cleanup()
+                                importCandidate.cleanup()
                             }
                         }
                     }
