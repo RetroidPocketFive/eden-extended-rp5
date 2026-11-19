@@ -58,6 +58,6 @@ The log can contain device and emulator diagnostic information. Review it before
 
 ## Diagnostic build notes
 
-The shader diagnostics build emits warnings prefixed with "RP5 shader diagnostics" for shader translation, SPIR-V/module preparation and Vulkan graphics/compute pipeline creation taking at least 2 ms. The messages include hashes and elapsed microseconds. The diagnostics do not themselves identify every GPU-driver stall, so correlate them with the exact gameplay moment.
+The shader diagnostics build emits warnings prefixed with "RP5 shader diagnostics" for graphics/compute shader translation, SPIR-V/module preparation, Vulkan graphics/compute pipeline creation, GPU-finish waits and Vulkan worker-drain waits taking at least 2 ms. Shader/pipeline messages include hashes and elapsed microseconds; scheduler messages report wait duration. The diagnostics do not themselves identify every GPU-driver stall, so correlate them with the exact gameplay moment.
 
 A warm run that still stutters without corresponding shader/pipeline timing warnings points toward other causes (for example, resource uploads, synchronization, texture-cache pressure or GPU/driver scheduling).
