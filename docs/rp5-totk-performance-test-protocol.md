@@ -45,8 +45,19 @@ After a noticeable hitch, keep the game running for up to 30 seconds if it remai
 
 Stop the test if the device becomes unusually hot, the emulator repeatedly freezes, or graphical corruption persists. Do not repeatedly force-stop during a single measurement sequence; that changes cache and recovery conditions.
 
+## Capturing shader diagnostics without ADB
+
+The timing warnings are written to Eden's normal application log (eden_log.txt), not the separate GPU log.
+
+1. Finish the test run and exit TOTK normally back to Eden's home screen.
+2. Open Settings and select **Share log**. Do not select **Share GPU log** for these shader warnings.
+3. Use the Android share sheet to send or save the eden_log.txt attachment.
+4. Share that file together with the run notes. The relevant entries begin with "RP5 shader diagnostics".
+
+The log can contain device and emulator diagnostic information. Review it before sharing it outside this debugging conversation.
+
 ## Diagnostic build notes
 
-The shader diagnostics build emits warnings prefixed with `RP5 shader diagnostics` for shader translation, SPIR-V/module preparation and Vulkan graphics/compute pipeline creation taking at least 2 ms. The messages include hashes and elapsed microseconds. The diagnostics do not themselves identify every GPU-driver stall, so correlate them with the exact gameplay moment.
+The shader diagnostics build emits warnings prefixed with "RP5 shader diagnostics" for shader translation, SPIR-V/module preparation and Vulkan graphics/compute pipeline creation taking at least 2 ms. The messages include hashes and elapsed microseconds. The diagnostics do not themselves identify every GPU-driver stall, so correlate them with the exact gameplay moment.
 
 A warm run that still stutters without corresponding shader/pipeline timing warnings points toward other causes (for example, resource uploads, synchronization, texture-cache pressure or GPU/driver scheduling).
