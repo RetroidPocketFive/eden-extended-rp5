@@ -275,6 +275,9 @@ object NativeLibrary {
      */
     external fun getBuildVersion(): String
 
+    /** Returns the Vulkan shader/pipeline cache format version. */
+    external fun getShaderCacheVersion(): Int
+
     enum class CoreError {
         ErrorSystemFiles,
         ErrorSavestate,
