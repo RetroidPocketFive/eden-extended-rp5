@@ -6,6 +6,7 @@ on:
       - rp5-development
       - rp5-baseline-apk-test
       - rp5-shader-stutter-diagnostics
+      - rp5-shader-cache-transfer-sync
   workflow_dispatch:
 
 permissions:
