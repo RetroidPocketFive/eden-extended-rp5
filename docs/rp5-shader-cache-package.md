@@ -31,9 +31,11 @@ Required metadata:
 - Eden build/version string and source commit when available
 - game title and title ID
 - game version/update version when known
-- Android device model and hardware identifier when available
+- Android device model, hardware identifier, API level and primary ABI when available
+- Installed custom Vulkan driver name, version, vendor, author and library name when its metadata is available
 - detected add-ons, including type, name, version and enabled state
 - Eden cache format version
+- Whether the custom-driver metadata was read successfully and whether the driver-specific cache was excluded
 - cache filename, byte size and SHA-256 checksum
 
 Unknown or unavailable values must be recorded as `unknown`, not guessed. Add-ons are reported from Eden's detected patch list; do not label arbitrary files as active mods.
