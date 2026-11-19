@@ -129,14 +129,14 @@ class GamePropertiesFragment : Fragment() {
 
         getPlayTime()
 
-        binding.buttonExportShaderCache.setOnClickListener {
+        binding.buttonExportShaderCache?.setOnClickListener {
             if (NativeLibrary.isRunning()) {
                 Toast.makeText(requireContext(), R.string.shader_cache_game_running, Toast.LENGTH_LONG).show()
             } else {
                 exportShaderCache.launch(ShaderCacheTransfer.suggestedFilename(args.game))
             }
         }
-        binding.buttonImportShaderCache.setOnClickListener {
+        binding.buttonImportShaderCache?.setOnClickListener {
             if (NativeLibrary.isRunning()) {
                 Toast.makeText(requireContext(), R.string.shader_cache_game_running, Toast.LENGTH_LONG).show()
             } else {
