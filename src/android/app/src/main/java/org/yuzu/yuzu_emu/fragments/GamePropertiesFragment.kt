@@ -249,15 +249,23 @@ class GamePropertiesFragment : Fragment() {
                 }
                 val validatedCandidate = candidate ?: error("Shader-cache validation did not produce a package.")
                 val manifest = validatedCandidate.manifest
-                val addonNames = manifest.stringPropertyNames()
+                val addonDetails = manifest.stringPropertyNames()
                     .filter { it.startsWith("addon.") }
                     .sorted()
-                    .mapNotNull { manifest.getProperty(it)?.split("|")?.getOrNull(2) }
+                    .mapNotNull { key ->
+                        manifest.getProperty(key)?.split("|")?.let { fields ->
+                            val type = fields.getOrNull(0) ?: "Unknown"
+                            val enabled = fields.getOrNull(1) == "true"
+                            val name = fields.getOrNull(2) ?: "Unnamed"
+                            val version = fields.getOrNull(3) ?: "Unknown"
+                            "$type: $name ($version) - ${if (enabled) "enabled" else "disabled"}"
+                        }
+                    }
                 val cacheBytes = manifest.getProperty("cache_bytes")?.toLongOrNull() ?: 0L
                 val warnings = if (validatedCandidate.warnings.isEmpty()) {
                     "No compatibility differences detected."
                 } else {
-                    candidate.warnings.joinToString(separator = "\n") { "• $it" }
+                    validatedCandidate.warnings.joinToString(separator = "\n") { "• $it" }
                 }
                 val details = buildString {
                     append("Game: ").append(manifest.getProperty("game_title", "Unknown")).append('\n')
@@ -267,7 +275,7 @@ class GamePropertiesFragment : Fragment() {
                     append("Exported: ").append(manifest.getProperty("exported_utc", "Unknown")).append('\n')
                     append("Device: ").append(manifest.getProperty("android_device_model", "Unknown")).append('\n')
                     append("Cache size: ").append(cacheBytes / (1024 * 1024)).append(" MiB").append('\n')
-                    append("Detected add-ons: ").append(if (addonNames.isEmpty()) "None recorded" else addonNames.joinToString())
+                    append("Detected add-ons:\n").append(if (addonDetails.isEmpty()) "None recorded" else addonDetails.joinToString(separator = "\n"))
                     append("\n\nCompatibility:\n").append(warnings)
                     append("\n\n").append(getString(R.string.shader_cache_import_confirm))
                 }
