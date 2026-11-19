@@ -1945,7 +1945,12 @@ JNIEXPORT jobject JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_checkForUpdate(
 
 #endif
 
-JNIEXPORT jint JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_getShaderCacheVersion(\n        JNIEnv* env, [[maybe_unused]] jobject obj) {\n    return static_cast<jint>(Vulkan::PipelineCache::CacheVersion);\n}\n\nJNIEXPORT jstring JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_getBuildVersion(
+JNIEXPORT jint JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_getShaderCacheVersion(
+        JNIEnv* env, [[maybe_unused]] jobject obj) {
+    return static_cast<jint>(Vulkan::PipelineCache::CacheVersion);
+}
+
+JNIEXPORT jstring JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_getBuildVersion(
         JNIEnv* env,
         [[maybe_unused]] jobject obj) {
     return env->NewStringUTF(Common::g_build_version);
