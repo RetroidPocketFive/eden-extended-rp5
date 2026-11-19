@@ -104,6 +104,7 @@ struct ShaderPools {
 
 class PipelineCache : public VideoCommon::ShaderCache {
 public:
+    static constexpr u32 CacheVersion = 18;
     explicit PipelineCache(Tegra::MaxwellDeviceMemoryManager& device_memory_, const Device& device,
                            Scheduler& scheduler, DescriptorPool& descriptor_pool,
                            GuestDescriptorQueue& guest_descriptor_queue,
