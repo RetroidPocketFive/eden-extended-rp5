@@ -97,9 +97,9 @@ object Rp5CrashReporter {
         }.getOrNull()
         val javaCrash = Rp5Diagnostics.readJavaCrash()
         val events = Rp5Diagnostics.readEvents()
-        if (previousExit == null && javaCrash == null && events == "No event breadcrumbs recorded.") {
-            return null
-        }
+        // Event breadcrumbs are always collected, but only offer an export after
+        // an abnormal exit or a captured uncaught Java exception.
+        if (previousExit == null && javaCrash == null) return null
         return buildString {
             if (javaCrash != null) {
                 appendLine(javaCrash)
