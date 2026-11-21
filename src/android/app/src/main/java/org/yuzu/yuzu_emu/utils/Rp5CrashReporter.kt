@@ -82,9 +82,17 @@ object Rp5CrashReporter {
 
         runCatching {
             File(context.filesDir, REPORT_FILE).writeText(report)
-            Log.warning("[RP5-Diagnostics] Previous abnormal process exit captured: ${reasonName(exit.reason)}")
+            // Application.onCreate runs before libyuzu-android is loaded. Use Android logging here,
+            // not Eden's native-backed Log wrapper, which would throw UnsatisfiedLinkError.
+            android.util.Log.w(
+                "RP5-Diagnostics",
+                "Previous abnormal process exit captured: ${reasonName(exit.reason)}"
+            )
         }.onFailure {
-            Log.error("[RP5-Diagnostics] Could not save process-exit report: ${it.message}")
+            android.util.Log.e(
+                "RP5-Diagnostics",
+                "Could not save process-exit report: ${it.message}"
+            )
         }
     }
 
