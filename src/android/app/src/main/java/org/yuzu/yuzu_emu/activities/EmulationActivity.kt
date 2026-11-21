@@ -122,6 +122,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.gameLaunched = true
+        Rp5Diagnostics.record("EMULATION", "EmulationActivity onCreate; launch intent received")
         ThemeHelper.setTheme(this)
 
         super.onCreate(savedInstanceState)
@@ -246,6 +247,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
 
     override fun onResume() {
         super.onResume()
+        Rp5Diagnostics.record("EMULATION", "Activity resumed; nativeRunning=${NativeLibrary.isRunning()} paused=${NativeLibrary.isPaused()}")
         Rp5DiagnosticSampler.start()
         nfcReader.startScanning()
         startMotionSensorListener()
@@ -256,6 +258,7 @@ class EmulationActivity : AppCompatActivity(), SensorEventListener, InputManager
     }
 
     override fun onPause() {
+        Rp5Diagnostics.record("EMULATION", "Activity paused; nativeRunning=${NativeLibrary.isRunning()} paused=${NativeLibrary.isPaused()}")
         Rp5DiagnosticSampler.stop()
         nfcReader.stopScanning()
         stopMotionSensorListener()
