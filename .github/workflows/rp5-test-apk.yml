@@ -8,6 +8,7 @@ on:
       - rp5-shader-stutter-diagnostics
       - rp5-shader-cache-transfer-sync
       - rp5-crash-diagnostics-v2
+      - rp5-combined-test
   # Manual dispatch is also available for validating an isolated RP5 feature branch.
   workflow_dispatch:
 
