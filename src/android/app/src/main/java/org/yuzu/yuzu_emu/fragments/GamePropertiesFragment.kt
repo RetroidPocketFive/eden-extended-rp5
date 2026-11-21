@@ -6,6 +6,7 @@ package org.yuzu.yuzu_emu.fragments
 import android.content.Intent
 import android.content.pm.ShortcutInfo
 import android.content.pm.ShortcutManager
+import android.net.Uri
 import android.os.Bundle
 import android.provider.DocumentsContract
 import android.view.LayoutInflater
@@ -23,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.transition.MaterialSharedAxis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,6 +53,7 @@ import org.yuzu.yuzu_emu.utils.GameHelper
 import org.yuzu.yuzu_emu.utils.GameIconUtils
 import org.yuzu.yuzu_emu.utils.GpuDriverHelper
 import org.yuzu.yuzu_emu.utils.MemoryUtil
+import org.yuzu.yuzu_emu.utils.ShaderCacheTransfer
 import org.yuzu.yuzu_emu.utils.ViewUtils.marquee
 import org.yuzu.yuzu_emu.utils.ViewUtils.updateMargins
 import org.yuzu.yuzu_emu.utils.collect
@@ -67,6 +70,16 @@ class GamePropertiesFragment : Fragment() {
     private val driverViewModel: DriverViewModel by activityViewModels()
 
     private val args by navArgs<GamePropertiesFragmentArgs>()
+
+    private val exportShaderCache =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+            if (uri != null) exportShaderCacheTo(uri)
+        }
+
+    private val importShaderCache =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) inspectShaderCache(uri)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,6 +129,22 @@ class GamePropertiesFragment : Fragment() {
 
         getPlayTime()
 
+        binding.buttonExportShaderCache?.setOnClickListener {
+            if (NativeLibrary.isRunning()) {
+                Toast.makeText(requireContext(), R.string.shader_cache_game_running, Toast.LENGTH_LONG).show()
+            } else {
+                exportShaderCache.launch(ShaderCacheTransfer.suggestedFilename(args.game))
+            }
+        }
+        binding.buttonImportShaderCache?.setOnClickListener {
+            if (NativeLibrary.isRunning()) {
+                Toast.makeText(requireContext(), R.string.shader_cache_game_running, Toast.LENGTH_LONG).show()
+            } else {
+                importShaderCache.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
+            }
+        }
+
+
         binding.buttonStart.setOnClickListener {
             LaunchGameDialogFragment.newInstance(args.game)
                 .show(childFragmentManager, LaunchGameDialogFragment.TAG)
@@ -154,6 +183,158 @@ class GamePropertiesFragment : Fragment() {
         super.onDestroy()
         if (!isChangingConfigurations) {
             gamesViewModel.reloadGames(true)
+        }
+    }
+
+    private fun exportShaderCacheTo(destination: Uri) {
+        if (NativeLibrary.isRunning()) {
+            Toast.makeText(requireContext(), R.string.shader_cache_game_running, Toast.LENGTH_LONG).show()
+            return
+        }
+        val userDirectory = DirectoryInitialization.userDirectory
+        if (userDirectory.isNullOrBlank()) {
+            Toast.makeText(requireContext(), R.string.fatal_error, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val resolver = requireContext().contentResolver
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val patches = NativeLibrary.getPatchesForFile(args.game.path, args.game.programId)?.toList().orEmpty()
+                    ShaderCacheTransfer.export(
+                        resolver,
+                        destination,
+                        userDirectory,
+                        args.game,
+                        patches
+                    )
+                }
+                Toast.makeText(requireContext(), R.string.shader_cache_export_success, Toast.LENGTH_LONG).show()
+            } catch (error: Exception) {
+                Toast.makeText(
+                    requireContext(),
+                    error.message ?: getString(R.string.fatal_error),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    private fun inspectShaderCache(source: Uri) {
+        if (NativeLibrary.isRunning()) {
+            Toast.makeText(requireContext(), R.string.shader_cache_game_running, Toast.LENGTH_LONG).show()
+            return
+        }
+        val userDirectory = DirectoryInitialization.userDirectory
+        if (userDirectory.isNullOrBlank()) {
+            Toast.makeText(requireContext(), R.string.fatal_error, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val resolver = requireContext().contentResolver
+        val cacheDir = requireContext().cacheDir
+        viewLifecycleOwner.lifecycleScope.launch {
+            var candidate: ShaderCacheTransfer.Candidate? = null
+            try {
+                candidate = withContext(Dispatchers.IO) {
+                    val patches = NativeLibrary.getPatchesForFile(args.game.path, args.game.programId)?.toList().orEmpty()
+                    ShaderCacheTransfer.inspect(
+                        resolver,
+                        source,
+                        cacheDir,
+                        args.game,
+                        patches
+                    )
+                }
+                val validatedCandidate = candidate ?: error("Shader-cache validation did not produce a package.")
+                val manifest = validatedCandidate.manifest
+                val addonDetails = manifest.stringPropertyNames()
+                    .filter { it.startsWith("addon.") }
+                    .sorted()
+                    .mapNotNull { key ->
+                        manifest.getProperty(key)?.split("|")?.let { fields ->
+                            val type = fields.getOrNull(0) ?: "Unknown"
+                            val enabled = fields.getOrNull(1) == "true"
+                            val name = fields.getOrNull(2) ?: "Unnamed"
+                            val version = fields.getOrNull(3) ?: "Unknown"
+                            "$type: $name ($version) - ${if (enabled) "enabled" else "disabled"}"
+                        }
+                    }
+                val cacheBytes = manifest.getProperty("cache_bytes")?.toLongOrNull() ?: 0L
+                val warnings = if (validatedCandidate.warnings.isEmpty()) {
+                    "No compatibility differences detected."
+                } else {
+                    validatedCandidate.warnings.joinToString(separator = "\n") { "• $it" }
+                }
+                val details = buildString {
+                    append("Game: ").append(manifest.getProperty("game_title", "Unknown")).append('\n')
+                    append("Title ID: ").append(manifest.getProperty("title_id", "Unknown")).append('\n')
+                    append("Game version: ").append(manifest.getProperty("game_version", "Unknown")).append('\n')
+                    append("Eden build: ").append(manifest.getProperty("eden_build", "Unknown")).append('\n')
+                    append("Exported: ").append(manifest.getProperty("exported_utc", "Unknown")).append('\n')
+                    append("Device: ").append(manifest.getProperty("android_device_model", "Unknown"))
+                        .append(" (").append(manifest.getProperty("android_hardware", "Unknown")).append(')')
+                        .append('\n')
+                    append("Cache format: ").append(manifest.getProperty("eden_cache_version", "Unknown")).append('\n')
+                    append("Cache size: ").append(cacheBytes / (1024 * 1024)).append(" MiB").append('\n')
+                    append("SHA-256: ").append(manifest.getProperty("cache_sha256", "Unknown")).append('\n')
+                    append("Vulkan driver cache: ").append(manifest.getProperty("driver_cache", "Unknown")).append('\n')
+                    append("Android API / ABI: ").append(manifest.getProperty("android_api_level", "Unknown"))
+                        .append(" / ").append(manifest.getProperty("device_abi", "Unknown")).append('\n')
+                    append("Custom driver: ").append(manifest.getProperty("driver_name", "Unknown"))
+                        .append(" ").append(manifest.getProperty("driver_version", "Unknown")).append('\n')
+                    append("Driver vendor / author: ").append(manifest.getProperty("driver_vendor", "Unknown"))
+                        .append(" / ").append(manifest.getProperty("driver_author", "Unknown")).append('\n')
+                    append("Detected add-ons:\n").append(if (addonDetails.isEmpty()) "None recorded" else addonDetails.joinToString(separator = "\n"))
+                    append("\n\nCompatibility:\n").append(warnings)
+                    append("\n\n").append(getString(R.string.shader_cache_import_confirm))
+                }
+
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle(R.string.shader_cache_transfer_title)
+                    .setMessage(details)
+                    .setNegativeButton(android.R.string.cancel) { _, _ ->
+                        candidate?.cleanup()
+                    }
+                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                        val importCandidate = validatedCandidate
+                        viewLifecycleOwner.lifecycleScope.launch {
+                            try {
+                                withContext(Dispatchers.IO) {
+                                    ShaderCacheTransfer.install(
+                                        importCandidate,
+                                        ShaderCacheTransfer.cacheDirectory(userDirectory, args.game)
+                                    )
+                                }
+                                Toast.makeText(
+                                    requireContext(),
+                                    R.string.shader_cache_import_success,
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } catch (error: Exception) {
+                                Toast.makeText(
+                                    requireContext(),
+                                    error.message ?: getString(R.string.fatal_error),
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } finally {
+                                importCandidate.cleanup()
+                            }
+                        }
+                    }
+                    .setOnCancelListener {
+                        candidate?.cleanup()
+                    }
+                    .show()
+            } catch (error: Exception) {
+                candidate?.cleanup()
+                Toast.makeText(
+                    requireContext(),
+                    error.message ?: getString(R.string.fatal_error),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
