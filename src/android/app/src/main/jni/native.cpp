@@ -95,6 +95,7 @@ extern "C" {
 #include "video_core/frame_gen/lossless_dll.h"
 #include "video_core/renderer_base.h"
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
+#include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/capture.h"
 #include "video_core/textures/decoders.h"
 #include "video_core/vulkan_common/vulkan_instance.h"
@@ -1943,6 +1944,11 @@ JNIEXPORT jobject JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_checkForUpdate(
 }
 
 #endif
+
+JNIEXPORT jint JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_getShaderCacheVersion(
+        JNIEnv* env, [[maybe_unused]] jobject obj) {
+    return static_cast<jint>(Vulkan::PipelineCache::CacheVersion);
+}
 
 JNIEXPORT jstring JNICALL Java_org_yuzu_yuzu_1emu_NativeLibrary_getBuildVersion(
         JNIEnv* env,

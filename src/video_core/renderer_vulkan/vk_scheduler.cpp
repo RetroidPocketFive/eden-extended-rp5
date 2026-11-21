@@ -4,6 +4,7 @@
 // SPDX-FileCopyrightText: Copyright 2019 yuzu Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -13,6 +14,7 @@
 
 #include "video_core/renderer_vulkan/vk_query_cache.h"
 
+#include "common/logging.h"
 #include "common/settings.h"
 #include "common/thread.h"
 #include "video_core/gpu_logging/gpu_logging.h"
@@ -65,12 +67,21 @@ void Scheduler::Finish(VkSemaphore signal_semaphore, VkSemaphore wait_semaphore)
     // When finishing, we need to wait for the submission to have executed on the device.
     const u64 presubmit_tick = CurrentTick();
     SubmitExecution(signal_semaphore, wait_semaphore);
+    const auto wait_start = std::chrono::steady_clock::now();
     Wait(presubmit_tick);
+    const auto wait_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - wait_start).count();
+    if (wait_us >= 2000) {
+        LOG_WARNING(Render_Vulkan,
+                    "RP5 shader diagnostics: scheduler GPU-finish wait duration={} us",
+                    wait_us);
+    }
     AllocateNewContext();
 }
 
 void Scheduler::WaitWorker() {
     DispatchWork();
+    const auto wait_start = std::chrono::steady_clock::now();
 
     // Ensure the queue is drained.
     {
@@ -79,7 +90,16 @@ void Scheduler::WaitWorker() {
     }
 
     // Now wait for execution to finish.
-    std::scoped_lock el{execution_mutex};
+    {
+        std::scoped_lock el{execution_mutex};
+    }
+    const auto wait_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now() - wait_start).count();
+    if (wait_us >= 2000) {
+        LOG_WARNING(Render_Vulkan,
+                    "RP5 shader diagnostics: scheduler worker-drain wait duration={} us",
+                    wait_us);
+    }
 }
 
 void Scheduler::DispatchWork() {

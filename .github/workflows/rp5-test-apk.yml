@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - rp5-development
+      - rp5-baseline-apk-test
+      - rp5-shader-stutter-diagnostics
+      - rp5-shader-cache-transfer-sync
+      - rp5-crash-diagnostics-v2
+      - rp5-combined-test
+  # Manual dispatch is also available for validating an isolated RP5 feature branch.
   workflow_dispatch:
 
 permissions:
@@ -30,9 +36,8 @@ jobs:
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
         with:
-          cmdline-tools-version: 12266719
           packages: |-
             platform-tools
           accept-android-sdk-licenses: true
