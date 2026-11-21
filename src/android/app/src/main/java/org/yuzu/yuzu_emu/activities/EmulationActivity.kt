@@ -61,6 +61,7 @@ import org.yuzu.yuzu_emu.utils.InputHandler
 import org.yuzu.yuzu_emu.utils.Log
 import org.yuzu.yuzu_emu.utils.MemoryUtil
 import org.yuzu.yuzu_emu.utils.Rp5DiagnosticSampler
+import org.yuzu.yuzu_emu.utils.Rp5Diagnostics
 import org.yuzu.yuzu_emu.utils.NativeConfig
 import org.yuzu.yuzu_emu.utils.NfcReader
 import org.yuzu.yuzu_emu.utils.ParamPackage
