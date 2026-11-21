@@ -19,6 +19,7 @@
 #include "common/bit_field.h"
 #include "video_core/renderer_vulkan/maxwell_to_vk.h"
 #include "video_core/renderer_vulkan/pipeline_statistics.h"
+#include "video_core/renderer_vulkan/rp5_stall_stats.h"
 #include "video_core/renderer_vulkan/vk_buffer_cache.h"
 #include "video_core/renderer_vulkan/vk_graphics_pipeline.h"
 #include "video_core/renderer_vulkan/vk_render_pass_cache.h"
@@ -310,12 +311,22 @@ GraphicsPipeline::GraphicsPipeline(
         }
     }
 
-    auto func{[this, shader_notify, &render_pass_cache, pipeline_statistics] {
+    const bool rp5_on_worker = worker_thread != nullptr;
+    auto func{[this, shader_notify, &render_pass_cache, pipeline_statistics, rp5_on_worker] {
         const VkRenderPass render_pass{render_pass_cache.Get(MakeRenderPassKey(key.state, device))};
         Validate();
+        const auto rp5_build_start = std::chrono::steady_clock::now();
         try {
+            Rp5Diag::tl_context = rp5_on_worker ? "worker" : "inline";
             MakePipeline(render_pass);
+            Rp5Diag::tl_context = "unknown";
+            const auto rp5_build_us = static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - rp5_build_start).count());
+            (rp5_on_worker ? Rp5Diag::g_build_worker : Rp5Diag::g_build_inline).Add(rp5_build_us);
+            Rp5Diag::MaybeReport();
         } catch (const vk::Exception& exception) {
+            Rp5Diag::tl_context = "unknown";
             LOG_CRITICAL(Render_Vulkan, "Graphics pipeline build failed: {}", exception.what());
             std::scoped_lock lock{build_mutex};
             is_built = true;
@@ -598,10 +609,29 @@ bool GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
 
     scheduler.RequestRenderpass(texture_cache.GetFramebuffer());
     if (!is_built.load(std::memory_order::relaxed)) {
+        Rp5Diag::g_stall_queued.fetch_add(1, std::memory_order_relaxed);
         // Wait for the pipeline to be built
         scheduler.Record([this](vk::CommandBuffer) {
-            std::unique_lock lock{build_mutex};
-            build_condvar.wait(lock, [this] { return is_built.load(std::memory_order::relaxed); });
+            if (is_built.load(std::memory_order::relaxed)) {
+                return; // finished while the command was queued: no stall
+            }
+            const auto rp5_stall_start = std::chrono::steady_clock::now();
+            {
+                std::unique_lock lock{build_mutex};
+                build_condvar.wait(lock,
+                                   [this] { return is_built.load(std::memory_order::relaxed); });
+            }
+            const auto rp5_stall_us = static_cast<uint64_t>(
+                std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - rp5_stall_start).count());
+            Rp5Diag::g_stall.Add(rp5_stall_us);
+            if (rp5_stall_us >= 1000) {
+                LOG_WARNING(Render_Vulkan,
+                            "RP5 stall: scheduler waited for pipeline hash={:016x} wait={} us "
+                            "thread=scheduler",
+                            key.Hash(), rp5_stall_us);
+            }
+            Rp5Diag::MaybeReport();
         });
     }
     const bool is_rescaling{texture_cache.IsRescaling()};
@@ -1100,8 +1130,8 @@ void GraphicsPipeline::MakePipeline(VkRenderPass render_pass) {
         std::chrono::steady_clock::now() - pipeline_build_start).count();
     if (pipeline_build_us >= 2000) {
         LOG_WARNING(Render_Vulkan,
-                    "RP5 shader diagnostics: Vulkan graphics pipeline hash={:016x} duration={} us stages={}",
-                    key.Hash(), pipeline_build_us, shader_stages.size());
+                    "RP5 shader diagnostics: Vulkan graphics pipeline hash={:016x} duration={} us stages={} thread={}",
+                    key.Hash(), pipeline_build_us, shader_stages.size(), Rp5Diag::tl_context);
     }
 
     // Log graphics pipeline creation

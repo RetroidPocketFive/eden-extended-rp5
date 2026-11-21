@@ -36,6 +36,7 @@
 #include "video_core/renderer_vulkan/vk_compute_pipeline.h"
 #include "video_core/renderer_vulkan/vk_descriptor_pool.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
+#include "video_core/renderer_vulkan/rp5_stall_stats.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_update_descriptor.h"
@@ -832,10 +833,14 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
         const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - translate_start).count();
+        if (build_in_parallel) {
+            Rp5Diag::g_translate_live.Add(static_cast<uint64_t>(translate_us));
+        }
         if (translate_us >= 2000) {
             LOG_WARNING(Render_Vulkan,
-                        "RP5 shader diagnostics: translate hash={:016x} stage={} duration={} us",
-                        key.unique_hashes[index], index, translate_us);
+                        "RP5 shader diagnostics: translate hash={:016x} stage={} duration={} us ctx={}",
+                        key.unique_hashes[index], index, translate_us,
+                        build_in_parallel ? "live/gpu-thread" : "disk-load");
         }
 
         if (Settings::values.dump_guest_shaders || Settings::values.gpu_log_shader_dumps.GetValue()) {
@@ -882,11 +887,15 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         modules[stage_index] = BuildShader(device, code);
         const auto shader_compile_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - shader_compile_start).count();
+        if (build_in_parallel) {
+            Rp5Diag::g_translate_live.Add(static_cast<uint64_t>(shader_compile_us));
+        }
         if (shader_compile_us >= 2000) {
             LOG_WARNING(Render_Vulkan,
-                        "RP5 shader diagnostics: SPIR-V/module hash={:016x} stage={} duration={} us bytes={}",
+                        "RP5 shader diagnostics: SPIR-V/module hash={:016x} stage={} duration={} us bytes={} ctx={}",
                         key.unique_hashes[index], stage_index, shader_compile_us,
-                        code.size() * sizeof(u32));
+                        code.size() * sizeof(u32),
+                        build_in_parallel ? "live/gpu-thread" : "disk-load");
         }
         if (GPU::Logging::IsActive()) {
             const auto compile_time = std::chrono::duration_cast<std::chrono::microseconds>(
