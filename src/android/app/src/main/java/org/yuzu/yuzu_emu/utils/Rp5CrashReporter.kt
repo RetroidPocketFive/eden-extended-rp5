@@ -91,11 +91,32 @@ object Rp5CrashReporter {
     fun hasPendingReport(context: Context = YuzuApplication.appContext): Boolean =
         File(context.filesDir, REPORT_FILE).isFile
 
-    fun readReport(context: Context = YuzuApplication.appContext): String? =
-        runCatching { File(context.filesDir, REPORT_FILE).takeIf { it.isFile }?.readText() }.getOrNull()
+    fun readReport(context: Context = YuzuApplication.appContext): String? {
+        val previousExit = runCatching {
+            File(context.filesDir, REPORT_FILE).takeIf { it.isFile }?.readText()
+        }.getOrNull()
+        val javaCrash = Rp5Diagnostics.readJavaCrash()
+        val events = Rp5Diagnostics.readEvents()
+        // Event breadcrumbs are always collected, but only offer an export after
+        // an abnormal exit or a captured uncaught Java exception.
+        if (previousExit == null && javaCrash == null) return null
+        return buildString {
+            if (javaCrash != null) {
+                appendLine(javaCrash)
+                appendLine()
+            }
+            if (previousExit != null) {
+                appendLine(previousExit)
+                appendLine()
+            }
+            appendLine("Recent RP5 event log:")
+            appendLine(events)
+        }
+    }
 
     fun clearReport(context: Context = YuzuApplication.appContext) {
         runCatching { File(context.filesDir, REPORT_FILE).delete() }
+        Rp5Diagnostics.clearJavaCrash()
     }
 
     private fun reasonName(reason: Int): String = when (reason) {
