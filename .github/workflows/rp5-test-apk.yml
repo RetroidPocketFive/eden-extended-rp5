@@ -6,6 +6,7 @@ on:
       - rp5-development
       - rp5-baseline-apk-test
       - rp5-shader-stutter-diagnostics
+      - rp5-crash-diagnostics-v2
   workflow_dispatch:
 
 permissions:
