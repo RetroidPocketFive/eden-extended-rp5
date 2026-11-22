@@ -917,6 +917,10 @@ struct Values {
     Setting<bool> gpu_log_memory_tracking{linkage, true, "gpu_log_memory_tracking",
                                            Category::Debugging};
     Setting<bool> gpu_log_driver_debug{linkage, true, "gpu_log_driver_debug", Category::Debugging};
+    // RP5: collect shader-stall / frame-time statistics for driver comparison (off by default).
+    Setting<bool> rp5_diagnostics{linkage, false, "rp5_diagnostics", Category::Debugging};
+    // RP5: free-text tag written into the diagnostics session line (e.g. "turnip-A").
+    Setting<std::string> rp5_diag_label{linkage, "", "rp5_diag_label", Category::Debugging};
     Setting<s32> gpu_log_ring_buffer_size{linkage, 512, "gpu_log_ring_buffer_size",
                                            Category::Debugging};
 
