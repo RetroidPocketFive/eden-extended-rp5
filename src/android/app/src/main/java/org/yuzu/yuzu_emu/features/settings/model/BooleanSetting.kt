@@ -92,6 +92,7 @@ enum class BooleanSetting(override val key: String) : AbstractBooleanSetting {
     DUMP_MACROS("dump_macros"),
     GPU_LOG_MEMORY_TRACKING("gpu_log_memory_tracking"),
     GPU_LOG_DRIVER_DEBUG("gpu_log_driver_debug"),
+    RP5_DIAGNOSTICS("rp5_diagnostics"),
 
     ENABLE_QUICK_SETTINGS("enable_quick_settings");
 
