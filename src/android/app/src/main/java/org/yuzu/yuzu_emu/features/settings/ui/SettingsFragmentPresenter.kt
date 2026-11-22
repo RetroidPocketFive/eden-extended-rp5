@@ -1554,6 +1554,8 @@ class SettingsFragmentPresenter(
                 add(BooleanSetting.DUMP_MACROS.key)
                 add(BooleanSetting.GPU_LOG_MEMORY_TRACKING.key)
                 add(BooleanSetting.GPU_LOG_DRIVER_DEBUG.key)
+                add(BooleanSetting.RP5_DIAGNOSTICS.key)
+                add(StringSetting.RP5_DIAG_LABEL.key)
                 add(IntSetting.GPU_LOG_RING_BUFFER_SIZE.key)
             }
         }
