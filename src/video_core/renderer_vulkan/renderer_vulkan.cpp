@@ -28,6 +28,7 @@
 #include "video_core/post_processing/fx_chain.h"
 #endif
 #include "video_core/renderer_vulkan/renderer_vulkan.h"
+#include "video_core/renderer_vulkan/rp5_stall_stats.h"
 #include "video_core/renderer_vulkan/vk_blit_screen.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -212,6 +213,8 @@ void RendererVulkan::Composite(std::span<const Tegra::FramebufferConfig> framebu
         return;
     }
 
+    Rp5Diag::FrameTick();
+
     RenderScreenshot(framebuffers);
     Frame* frame = present_manager.GetRenderFrame();
 
@@ -259,6 +262,8 @@ void RendererVulkan::Report() const {
 
     const auto available_vram = static_cast<f64>(device.GetDeviceLocalMemory()) / f64{1_GiB};
 
+    Rp5Diag::SetDeviceInfo(fmt::format("{} | {} | {}", driver_name, model_name,
+                                       device.GetDriverName()));
     LOG_INFO(Render_Vulkan, "Driver: {}", driver_name);
     LOG_INFO(Render_Vulkan, "Device: {}", model_name);
     LOG_INFO(Render_Vulkan, "Vulkan: {}", api_version);
