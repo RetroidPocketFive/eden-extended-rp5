@@ -686,6 +686,10 @@
     <string name="gpu_log_memory_tracking_description">Monitor GPU memory allocations and deallocations</string>
     <string name="gpu_log_driver_debug">Driver Debug Info</string>
     <string name="gpu_log_driver_debug_description">Capture driver-specific debug information (Turnip breadcrumbs, etc.)</string>
+    <string name="rp5_diagnostics">RP5 stall and frame-time stats</string>
+    <string name="rp5_diagnostics_description">Logs shader-stall and frame-time statistics to the log every few seconds, plus a session summary each minute, for comparing GPU drivers. Takes effect on the next game launch.</string>
+    <string name="rp5_diag_label">RP5 diagnostics label</string>
+    <string name="rp5_diag_label_description">Short tag added to the session summary, for example the driver build you are testing</string>
     <string name="gpu_log_ring_buffer_size">Ring Buffer Size</string>
     <string name="gpu_log_ring_buffer_size_description">Number of recent Vulkan calls to track (default: 512)</string>
     <string name="gpu_log_ring_buffer_size_hint">64 to 4096 entries</string>
