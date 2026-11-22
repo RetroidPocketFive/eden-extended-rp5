@@ -1099,6 +1099,20 @@ abstract class SettingsItem(
                 )
             )
             put(
+                SwitchSetting(
+                    BooleanSetting.RP5_DIAGNOSTICS,
+                    titleId = R.string.rp5_diagnostics,
+                    descriptionId = R.string.rp5_diagnostics_description
+                )
+            )
+            put(
+                StringInputSetting(
+                    StringSetting.RP5_DIAG_LABEL,
+                    titleId = R.string.rp5_diag_label,
+                    descriptionId = R.string.rp5_diag_label_description
+                )
+            )
+            put(
                 SpinBoxSetting(
                     IntSetting.GPU_LOG_RING_BUFFER_SIZE,
                     titleId = R.string.gpu_log_ring_buffer_size,
