@@ -298,11 +298,28 @@ struct Memory::Impl {
         });
     }
 
+    // Block ids are 16 bits and are handed out once per mapping, never recycled. Once they run out
+    // every new mapping gets this sentinel, which says nothing about host contiguity, so two pages
+    // carrying it must NOT be treated as one contiguous host range (callers then use the safe
+    // page-by-page path).
+    static constexpr u16 BlockIdExhausted = 0xFFFF;
+
+    [[nodiscard]] inline bool SpanIsContiguous(const VAddr addr, const std::size_t size) const noexcept {
+        const auto first_page = addr >> YUZU_PAGEBITS;
+        const auto last_page = (addr + size) >> YUZU_PAGEBITS;
+        if (first_page == last_page) {
+            return true;
+        }
+        const u16 first_block = current_page_table->entries[first_page].Block();
+        const u16 last_block = current_page_table->entries[last_page].Block();
+        return first_block == last_block && first_block != BlockIdExhausted;
+    }
+
     [[nodiscard]] inline const u8* GetSpan(const VAddr addr, const std::size_t size) const noexcept {
-        return (current_page_table->entries[addr >> YUZU_PAGEBITS].Block() == current_page_table->entries[(addr + size) >> YUZU_PAGEBITS].Block()) ? GetPointerSilent(addr) : nullptr;
+        return SpanIsContiguous(addr, size) ? GetPointerSilent(addr) : nullptr;
     }
     [[nodiscard]] inline u8* GetSpan(const VAddr addr, const std::size_t size) noexcept {
-        return (current_page_table->entries[addr >> YUZU_PAGEBITS].Block() == current_page_table->entries[(addr + size) >> YUZU_PAGEBITS].Block()) ? GetPointerSilent(addr) : nullptr;
+        return SpanIsContiguous(addr, size) ? GetPointerSilent(addr) : nullptr;
     }
 
     bool WriteBlockImpl(const Common::ProcessAddress addr, const void* buffer, const std::size_t size, bool unsafe) {
@@ -547,8 +564,24 @@ struct Memory::Impl {
 
             page_table.entries.ZeroRegion(base, end);
         } else {
-            auto current_block = block_count.fetch_add(1, std::memory_order_relaxed);
-            ASSERT(current_block != 65535);
+            // Saturating allocation: never wrap, so an id is never shared by two different mappings.
+            u16 current_block = block_count.load(std::memory_order_relaxed);
+            for (;;) {
+                if (current_block >= BlockIdExhausted) {
+                    current_block = BlockIdExhausted;
+                    if (!block_ids_exhausted_logged.exchange(true, std::memory_order_relaxed)) {
+                        LOG_WARNING(HW_Memory,
+                                    "Memory block ids exhausted; falling back to page-by-page "
+                                    "accesses for new mappings");
+                    }
+                    break;
+                }
+                if (block_count.compare_exchange_weak(current_block,
+                                                      static_cast<u16>(current_block + 1),
+                                                      std::memory_order_relaxed)) {
+                    break;
+                }
+            }
 
             page_table.entries.CommitRegion(base, end);
             while (base != end) {
@@ -776,6 +809,7 @@ struct Memory::Impl {
     Common::HostMemory* host_buffer{};
 #endif
     std::atomic<u16> block_count = 0;
+    std::atomic<bool> block_ids_exhausted_logged{false};
 };
 
 Memory::Memory(Core::System& system_) : system{system_} {

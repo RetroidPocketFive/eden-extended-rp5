@@ -11,6 +11,7 @@ on:
       - rp5-combined-test
       - rp5-stall-diagnostics-test
       - rp5-crashreporter-startup-fix
+      - rp5-memory-blockid-fix
   # Manual dispatch is also available for validating an isolated RP5 feature branch.
   workflow_dispatch:
 
