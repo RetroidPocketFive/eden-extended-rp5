@@ -45,6 +45,17 @@ The work is guided by a few practical priorities:
 
 Changes are judged primarily by how TOTK behaves on an actual RP5. A change that helps another game or a more powerful device is not automatically a priority here.
 
+## Starting point: Eden Extended features
+
+This RP5 project builds on the existing Eden Extended fork rather than replacing its upstream work. The starting point already includes:
+
+- Support for the `VOTE.VTG` shader instruction and a vertex-culling pass intended to address rendering issues.
+- Texture-cache handling intended to avoid redundant guest-memory uploads when GPU-modified images are reused.
+- A Qualcomm/Turnip-related UBWC handling workaround for multisampled images to avoid a known GPU-hang condition on affected configurations.
+- Shader and translated-IR dump support for graphics debugging.
+
+These are inherited Eden Extended features; they should not be confused with the RP5-specific changes listed below.
+
 ## Current project work
 
 The following work is present in the active `rp5-development` branch. These are engineering features and diagnostic improvements; their presence does not mean every performance issue is solved.
@@ -89,6 +100,18 @@ See [the shader-cache package notes](docs/rp5-shader-cache-package.md) for detai
 Reports are shared only when the user chooses to share them. The diagnostics do not automatically upload reports, and they are not intended to collect ROMs, save files or shader-cache contents.
 
 See [the RP5 crash-diagnostics notes](docs/rp5-crash-diagnostics.md).
+
+### Additional frame-time diagnostics under testing
+
+A separate draft development change adds an opt-in RP5 diagnostics mode for more detailed TOTK testing. The proposed additions include:
+
+- Presented-frame average, p50, p95, p99 and maximum frame time.
+- Counts of frames exceeding 50 ms and 100 ms.
+- Five-second stall summaries and 60-second session summaries.
+- Pipeline-stall attribution by draw size, including small-draw counters.
+- A user-defined diagnostics label to identify driver and settings comparison runs.
+
+These additions are being evaluated in [draft PR #15](https://github.com/RetroidPocketFive/eden-extended-rp5/pull/15). They are **not yet part of the merged `rp5-development` baseline**. The diagnostics are measurement tools and may have overhead; on-device validation is required before treating their results or impact as established.
 
 ## Known limitations and open problems
 
