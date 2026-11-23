@@ -130,7 +130,7 @@ Real-device testing is essential. When comparing builds, keep the test as consis
 **Reference game configuration for current testing:**
 
 - **TOTK title ID:** `0100F2C0115B6000`
-- **Game update:** `v1.4.3p`
+- **Game update:** `1.4.3`
 
 Use this title ID and update version when reproducing or comparing the project's current TOTK test results. Record any deviation from this configuration in test feedback.
 
