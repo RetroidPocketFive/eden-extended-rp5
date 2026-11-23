@@ -320,11 +320,14 @@ GraphicsPipeline::GraphicsPipeline(
             Rp5Diag::tl_context = rp5_on_worker ? "worker" : "inline";
             MakePipeline(render_pass);
             Rp5Diag::tl_context = "unknown";
-            const auto rp5_build_us = static_cast<uint64_t>(
-                std::chrono::duration_cast<std::chrono::microseconds>(
-                    std::chrono::steady_clock::now() - rp5_build_start).count());
-            (rp5_on_worker ? Rp5Diag::g_build_worker : Rp5Diag::g_build_inline).Add(rp5_build_us);
-            Rp5Diag::MaybeReport();
+            if (Rp5Diag::Enabled()) {
+                const auto rp5_build_us = static_cast<uint64_t>(
+                    std::chrono::duration_cast<std::chrono::microseconds>(
+                        std::chrono::steady_clock::now() - rp5_build_start).count());
+                (rp5_on_worker ? Rp5Diag::g_build_worker : Rp5Diag::g_build_inline)
+                    .Add(rp5_build_us);
+                Rp5Diag::MaybeReport();
+            }
         } catch (const vk::Exception& exception) {
             Rp5Diag::tl_context = "unknown";
             LOG_CRITICAL(Render_Vulkan, "Graphics pipeline build failed: {}", exception.what());
@@ -609,11 +612,22 @@ bool GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
 
     scheduler.RequestRenderpass(texture_cache.GetFramebuffer());
     if (!is_built.load(std::memory_order::relaxed)) {
-        Rp5Diag::g_stall_queued.fetch_add(1, std::memory_order_relaxed);
+        const bool rp5_diag = Rp5Diag::Enabled();
+        if (rp5_diag) {
+            Rp5Diag::g_stall_queued.fetch_add(1, std::memory_order_relaxed);
+        }
+        const uint32_t rp5_idx = Rp5Diag::tl_index_count;
+        const uint32_t rp5_vtx = Rp5Diag::tl_vertex_count;
         // Wait for the pipeline to be built
-        scheduler.Record([this](vk::CommandBuffer) {
+        scheduler.Record([this, rp5_idx, rp5_vtx, rp5_diag](vk::CommandBuffer) {
             if (is_built.load(std::memory_order::relaxed)) {
                 return; // finished while the command was queued: no stall
+            }
+            if (!rp5_diag) {
+                std::unique_lock lock{build_mutex};
+                build_condvar.wait(lock,
+                                   [this] { return is_built.load(std::memory_order::relaxed); });
+                return;
             }
             const auto rp5_stall_start = std::chrono::steady_clock::now();
             {
@@ -625,11 +639,15 @@ bool GraphicsPipeline::ConfigureDraw(const RescalingPushConstant& rescaling,
                 std::chrono::duration_cast<std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - rp5_stall_start).count());
             Rp5Diag::g_stall.Add(rp5_stall_us);
+            const bool rp5_small = rp5_idx <= 6 || rp5_vtx <= 6;
+            if (rp5_small) {
+                Rp5Diag::g_stall_small.Add(rp5_stall_us);
+            }
             if (rp5_stall_us >= 1000) {
                 LOG_WARNING(Render_Vulkan,
                             "RP5 stall: scheduler waited for pipeline hash={:016x} wait={} us "
-                            "thread=scheduler",
-                            key.Hash(), rp5_stall_us);
+                            "thread=scheduler idx={} vtx={} small_draw={}",
+                            key.Hash(), rp5_stall_us, rp5_idx, rp5_vtx, rp5_small);
             }
             Rp5Diag::MaybeReport();
         });

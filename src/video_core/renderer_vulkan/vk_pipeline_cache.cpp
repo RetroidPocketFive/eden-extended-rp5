@@ -776,6 +776,13 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
     if (pipeline->IsBuilt()) {
         return pipeline;
     }
+    // RP5 diagnostics: remember the draw size so a stall can be attributed to it.
+    const bool rp5_diag = Rp5Diag::Enabled();
+    if (rp5_diag) {
+        const auto& rp5_draw_state = maxwell3d->draw_manager.draw_state;
+        Rp5Diag::tl_index_count = static_cast<uint32_t>(rp5_draw_state.index_buffer.count);
+        Rp5Diag::tl_vertex_count = static_cast<uint32_t>(rp5_draw_state.vertex_buffer.count);
+    }
     if (!use_asynchronous_shaders) {
         return pipeline;
     }
@@ -784,7 +791,13 @@ GraphicsPipeline* PipelineCache::BuiltPipeline(GraphicsPipeline* pipeline) const
     // can't be built async
     const auto& draw_state = maxwell3d->draw_manager.draw_state;
     if (draw_state.index_buffer.count <= 6 || draw_state.vertex_buffer.count <= 6) {
+        if (rp5_diag) {
+            Rp5Diag::g_async_exempt_small.fetch_add(1, std::memory_order_relaxed);
+        }
         return pipeline;
+    }
+    if (rp5_diag) {
+        Rp5Diag::g_async_skipped.fetch_add(1, std::memory_order_relaxed);
     }
     return nullptr;
 }
@@ -833,7 +846,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
 
         const auto translate_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - translate_start).count();
-        if (build_in_parallel) {
+        if (build_in_parallel && Rp5Diag::Enabled()) {
             Rp5Diag::g_translate_live.Add(static_cast<uint64_t>(translate_us));
         }
         if (translate_us >= 2000) {
@@ -887,7 +900,7 @@ std::unique_ptr<GraphicsPipeline> PipelineCache::CreateGraphicsPipeline(
         modules[stage_index] = BuildShader(device, code);
         const auto shader_compile_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - shader_compile_start).count();
-        if (build_in_parallel) {
+        if (build_in_parallel && Rp5Diag::Enabled()) {
             Rp5Diag::g_translate_live.Add(static_cast<uint64_t>(shader_compile_us));
         }
         if (shader_compile_us >= 2000) {
