@@ -127,6 +127,13 @@ No fixed FPS target, full-game-playability claim or universal driver recommendat
 
 Real-device testing is essential. When comparing builds, keep the test as consistent as possible:
 
+**Reference game configuration for current testing:**
+
+- **TOTK title ID:** `0100F2C0115B6000`
+- **Game update:** `v1.4.3p`
+
+Use this title ID and update version when reproducing or comparing the project's current TOTK test results. Record any deviation from this configuration in test feedback.
+
 1. Use the same RP5, game version, graphics driver and emulator settings.
 2. Record whether the shader cache is cold, partially populated or warm.
 3. Test the same route or gameplay situation, rather than comparing unrelated scenes.
